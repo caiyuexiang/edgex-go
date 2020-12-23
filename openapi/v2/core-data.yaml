@@ -37,14 +37,12 @@ components:
           description: "The unique identifier for the reading"
           type: string
           format: uuid
-        name:
-          description: "The name for the reading"
+        resourceName:
+          description: "The device resource name for the reading"
           type: string
-        labels:
-          description: "One or more custom labels that can be assigned to a reading"
-          type: array
-          items:
-            type: string
+        profileName:
+          description: "The device profile name for the reading"
+          type: string
         origin:
           description: "A Unix timestamp indicating when the reading was originated at the source device (can support nanoseconds)"
           type: integer
@@ -53,7 +51,8 @@ components:
           type: string
       required:
         - deviceName
-        - name
+        - resourceName
+        - profileName
         - origin
         - valueType
     BaseRequest:
@@ -109,16 +108,14 @@ components:
           required:
             - binaryValue
             - mediaType
-    EventCountResponse:
+    CountResponse:
       allOf:
         - $ref: '#/components/schemas/BaseResponse'
-      description: "Returns an aggregate event count in uint32 integer type. If the deviceName property is blank then the count is applicable to all events in the database. Otherwise, the count is applicable to the specified device."
+      description: "Returns an aggregate count of specified objects, e.g. events or readings, in uint32 integer type."
       type: object
       properties:
         count:
           type: integer
-        deviceName:
-          type: string
     Event:
       description: "A discrete event containing one or more readings"
       properties:
@@ -240,16 +237,6 @@ components:
           description: "Outputs the current server timestamp in RFC1123 format"
           example: "Mon, 02 Jan 2006 15:04:05 MST"
           type: string
-    ReadingCountResponse:
-      allOf:
-        - $ref: '#/components/schemas/BaseResponse'
-      description: "Returns an aggregate reading count in uint32 integer type. If the deviceName property is blank then the count is applicable to all readings in the database. Otherwise, the count is applicable to the specified device."
-      type: object
-      properties:
-        count:
-          type: integer
-        deviceName:
-          type: string
     ReadingResponse:
       allOf:
         - $ref: '#/components/schemas/BaseResponse'
@@ -264,9 +251,6 @@ components:
         - $ref: '#/components/schemas/BaseReading'
         - type: object
           properties:
-            floatEncoding:
-              description: "Indicates how a float value is encoded, if the value property contains a float. It should be 'Base64' or 'eNotation'"
-              type: string
             value:
               description: "A string representation of the reading's value"
               type: string
@@ -282,28 +266,10 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/SimpleReading'
-    UpdateEventPushedByChecksumRequest:
-      description: "A request to facilitate updating the 'pushed' timestamp on an event according to its checksum."
-      allOf:
-        - $ref: '#/components/schemas/BaseRequest'
-        - type: object
-          properties:
-            checksum:
-              type: string
-      required:
-      - checksum
-    UpdateEventPushedByChecksumResponse:
-      description: "A response indicating success/failure to update the 'pushed' timestamp on an event according to its checksum."
-      allOf:
-        - $ref: '#/components/schemas/BaseResponse'
-      type: object
-      properties:
-        checksum:
-          type: string
     VersionResponse:
       description: "A response returned from the /version endpoint whose purpose is to report out the latest version supported by the service."
       allOf:
-      - $ref: '#/components/schemas/BaseResponse'
+        - $ref: '#/components/schemas/BaseResponse'
       type: object
       properties:
         version:
@@ -352,6 +318,12 @@ components:
         apiVersion: "v2"
         statusCode: 200
         message: ""
+    202Example:
+      value:
+        requestId: ""
+        apiVersion: "v2"
+        statusCode: 202
+        message: ""
     400Example:
       value:
         requestId: ""
@@ -363,7 +335,13 @@ components:
         requestId: ""
         apiVersion: "v2"
         statusCode: 404
-        message: "Not Found"     
+        message: "Not Found"
+    416Example:
+      value:
+        requestId: ""
+        apiVersion: "v2"
+        statusCode: 416
+        message: "Range Not Satisfiable"
     500Example:
       value:
         requestId: ""
@@ -388,22 +366,20 @@ components:
               - apiVersion: "v2"
                 created: 1594876281221
                 deviceName: "device-001"
+                resourceName: "resource-001"
+                profileName: "profile-001"
                 id: "31569347-9369-43ec-aa6a-59ea9c624a6f"
-                labels:                            
-                  - "power"
                 modified: 1594975851631
                 origin: 1602168089665565300
                 pushed: 1594975851631
-                floatEncoding: "eNotation"
                 valueType: "Float32"
                 value: "39.5"
               - apiVersion: "v2"
                 create: 1594876281221
                 deviceName: "device-001"
+                resourceName: "resource-001"
+                profileName: "profile-001"
                 id: "2fd73a5b-969f-483c-9c52-6bb460a06eb1"
-                labels:
-                  - "Fahrenheit"
-                  - "temperature"
                 origin: 1602168089665565300
                 valueType: "Int8"
                 value: "75"
@@ -416,9 +392,9 @@ components:
               - apiVersion: "v2"
                 created: 1594879337014
                 deviceName: "device-002"
+                resourceName: "resource-002"
+                profileName: "profile-002"
                 id: "71c601d9-cb56-453a-8c75-54461e444713"
-                labels:
-                  - "image"
                 origin: 1602168089665565300
                 valueType: "Binary"
                 binaryValue: "83010203"
@@ -432,11 +408,10 @@ components:
               - apiVersion: "v2"
                 created: 594983105886
                 deviceName: "device-002"
+                resourceName: "resource-002"
+                profileName: "profile-002"
                 id: "7003cacc-0e00-4676-977c-4e58b9612abd"
-                labels:
-                  - "co2"
                 origin: 1602168089665565300
-                floatEncoding: "eNotation"
                 valueType: "Float32"
                 value: "12.2"
     AllReadingsExample:
@@ -449,31 +424,27 @@ components:
           - apiVersion: "v2"
             created: 1594876281221
             deviceName: "device-001"
+            resourceName: "resource-001"
+            profileName: "profile-001"
             id: "31569347-9369-43ec-aa6a-59ea9c624a6f"
-            labels:
-              - "power"
-            modified: 1594975851631
             origin: 1602168089665565300
-            pushed: 1594975851631
-            floatEncoding: "eNotation"
             valueType: "Float32"
             value: "39.5"
           - apiVersion: "v2"
-            create: 1594876281221
+            created: 1594876281221
             deviceName: "device-001"
+            resourceName: "resource-001"
+            profileName: "profile-001"
             id: "2fd73a5b-969f-483c-9c52-6bb460a06eb1"
-            labels:
-              - "Fahrenheit"
-              - "temperature"
             origin: 1602168089665565300
             valueType: "Int8"
             value: "75" 
           - apiVersion: "v2"
             created: 1594879337014
             deviceName: "device-002"
+            resourceName: "resource-002"
+            profileName: "profile-002"
             id: "71c601d9-cb56-453a-8c75-54461e444713"
-            labels:
-              - "image"
             origin: 1602168089665565300
             valueType: "Binary"
             binaryValue: "83010203"
@@ -481,11 +452,10 @@ components:
           - apiVersion: "v2"
             created: 594983105886
             deviceName: "device-002"
+            resourceName: "resource-002"
+            profileName: "profile-002"
             id: "7003cacc-0e00-4676-977c-4e58b9612abd"
-            labels:
-              - "co2"
             origin: 1602168089665565300
-            floatEncoding: "eNotation"
             valueType: "Float32"
             value: "12.2"
 paths:
@@ -509,11 +479,10 @@ paths:
                   origin: 1602168089665565300
                   readings:
                     - deviceName: device-002
+                      resourceName: resource-002
+                      profileName: profile-002
                       id: 7003cacc-0e00-4676-977c-4e58b9612abd
-                      labels:
-                        - co2
                       origin: 1602168089665565300
-                      floatEncoding: eNotation
                       valueType: Float32
                       value: '12.2'
               - event:
@@ -522,11 +491,10 @@ paths:
                   origin: 1602168089665565300
                   readings:
                     - deviceName: device-002
+                      resourceName: resource-002
+                      profileName: profile-002
                       id: 7003cacc-0e00-4676-977c-4e58b9612abd
-                      labels:
-                        - co2
                       origin: 1602168089665565300
-                      floatEncoding: eNotation
                       valueType: Float32
                       value: '12.2'
               - event:
@@ -537,9 +505,9 @@ paths:
                     - apiVersion: v2
                       created: 1594879337014
                       deviceName: device-002
+                      resourceName: resource-002
+                      profileName: profile-002
                       id: 71c601d9-cb56-453a-8c75-54461e444713
-                      labels:
-                        - image
                       origin: 1602168089665565300
                       valueType: Binary
                       binaryValue: '83010203'
@@ -616,7 +584,30 @@ paths:
               examples:
                 MultiEventsExample:
                   $ref: '#/components/examples/AllEventsExample'
-
+        '400':
+          description: "Request is in an invalid state"
+          headers:
+            X-Correlation-ID:
+              $ref: '#/components/headers/correlatedResponseHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                400Example:
+                  $ref: '#/components/examples/400Example'
+        '416':
+          description: "Request range is not satisfiable"
+          headers:
+            X-Correlation-ID:
+              $ref: '#/components/headers/correlatedResponseHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                400Example:
+                  $ref: '#/components/examples/416Example'
         '500':
           description: "An unexpected error occurred on the server"
           headers:
@@ -667,21 +658,19 @@ paths:
                   readings:
                     - created: 1594876281221
                       deviceName: "device-001"
+                      resourceName: "resource-001"
+                      profileName: "profile-001"
                       id: "31569347-9369-43ec-aa6a-59ea9c624a6f"
-                      labels:                            
-                        - "power"
                       modified: 1594975851631
                       origin: 1602168089665565300
                       pushed: 1594975851631
-                      floatEncoding: "eNotation"
                       valueType: "Float32"
                       value: "39.5"
                     - create: 1594876281221
                       deviceName: "device-001"
+                      resourceName: "resource-001"
+                      profileName: "profile-001"
                       id: "2fd73a5b-969f-483c-9c52-6bb460a06eb1"
-                      labels:
-                        - "Fahrenheit"
-                        - "temperature"
                       origin: 1602168089665565300
                       valueType: "Int8"
                       value: "75"
@@ -748,82 +737,6 @@ paths:
               examples:
                 500Example:
                   $ref: '#/components/examples/500Example'
-  /event/pushed:
-    parameters:
-    - $ref: '#/components/parameters/correlatedRequestHeader'
-    put:
-      summary: "For an event with the supplied checksum value, update the pushed time indicating successful propogation to northside apps/services."
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: array
-              items:
-                $ref: '#/components/schemas/UpdateEventPushedByChecksumRequest'
-            example:
-              - requestId: e6e8a2f4-eb14-4649-9e2b-175247911369
-                checksum: 4228c3215949e862
-              - requestId: e6e8a2f4-eb14-4649-9e2b-175247911369
-                checksum: 1111c3215949e862
-              - requestId: e6e8a2f4-eb14-4649-9e2b-175247911369
-                checksum: 2222c3215949e862
-      responses:
-        '207':
-          description: "Indicates a multi-part response supportive of accepting multiple requests at once. The 'statusCode' property of each response in the returned array will indicate success or failure."
-          headers:
-            X-Correlation-ID:
-              $ref: '#/components/headers/correlatedResponseHeader'
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  anyOf:
-                    - $ref: '#/components/schemas/ErrorResponse'
-                    - $ref: '#/components/schemas/UpdateEventPushedByChecksumResponse'
-              example:
-                - requestId: "e6e8a2f4-eb14-4649-9e2b-175247911369"
-                  apiVersion: "v2"
-                  statusCode: 200
-                  message: ""
-                  checksum: "4228c3215949e862"
-                - requestId: "e6e8a2f4-eb14-4649-9e2b-175247911369"
-                  apiVersion: "v2"
-                  statusCode: 404
-                  message: "Not Found"
-                - requestId: "e6e8a2f4-eb14-4649-9e2b-175247911369"
-                  apiVersion: "v2"
-                  statusCode: 500
-                  message: "Interval Server Error"
-        '400':
-          description: "Request is in an invalid state"
-          headers:
-            X-Correlation-ID:
-              $ref: '#/components/headers/correlatedResponseHeader'
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-              example:
-                requestId: "e6e8a2f4-eb14-4649-9e2b-175247911369"
-                apiVersion: "v2"
-                statusCode: 400
-                message: "Bad Request"
-        '500':
-          description: An unexpected error occurred on the server
-          headers:
-            X-Correlation-ID:
-              $ref: '#/components/headers/correlatedResponseHeader'
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-              example:
-                requestId: "e6e8a2f4-eb14-4649-9e2b-175247911369"
-                apiVersion: "v2"
-                statusCode: 500
-                message: "Interval Server Error"
   /event/count:
     parameters:
     - $ref: '#/components/parameters/correlatedRequestHeader'
@@ -838,14 +751,13 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/EventCountResponse'
+                $ref: '#/components/schemas/CountResponse'
               example:
                 requestId: ""
                 apiVersion: "v2"
                 statusCode: 200
                 message: ""
                 count: 3
-                deviceName: ""
         '500':
           description: "An unexpected error occurred on the server"
           headers:
@@ -858,10 +770,10 @@ paths:
               examples:
                 500Example:
                   $ref: '#/components/examples/500Example'
-  /event/count/device/{deviceName}:
+  /event/count/device/name/{name}:
     parameters:
     - $ref: '#/components/parameters/correlatedRequestHeader'
-    - name: deviceName
+    - name: name
       in: path
       required: true
       schema:
@@ -878,14 +790,13 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/EventCountResponse'
+                $ref: '#/components/schemas/CountResponse'
               example:
                 requestId: ""
                 apiVersion: "v2"
                 statusCode: 200
                 message: ""
-                count: 1 
-                deviceName: "device-001"
+                count: 1
         '404':
           description: "The requested resource does not exist"
           headers:
@@ -907,71 +818,22 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
-              examples:
-                500Example:
-                  $ref: '#/components/examples/500Example'
-  /event/device/{deviceId}:
-    parameters:
-    - $ref: '#/components/parameters/correlatedRequestHeader'
-    - name: deviceId
-      in: path
-      required: true
-      schema:
-        type: string
-        format: uuid
-      description: "Uniquely identifies a given device"
-    delete:
-      summary: "Deletes all events for the specified device"
-      responses:
-        '200':
-          description: "Delete successful"
-          headers:
-            X-Correlation-ID:
-              $ref: '#/components/headers/correlatedResponseHeader'
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/BaseResponse'
-              examples:
-                200Example:
-                  $ref: '#/components/examples/200Example'
-        '404':
-          description: "The requested resource does not exist"
-          headers:
-            X-Correlation-ID:
-              $ref: '#/components/headers/correlatedResponseHeader'
-          content:
-            application/json:
-              schema:
-               $ref: '#/components/schemas/ErrorResponse'
-              examples:
-                404Example:
-                  $ref: '#/components/examples/404Example'
-        '500':
-          description: "An unexpected error occurred on the server"
-          headers:
-            X-Correlation-ID:
-              $ref: '#/components/headers/correlatedResponseHeader'
-          content:
-            application/json:
-              schema:
-               $ref: '#/components/schemas/ErrorResponse'
               examples:
                 500Example:
                   $ref: '#/components/examples/500Example'
   /event/device/name/{name}:
-    parameters:
-    - $ref: '#/components/parameters/correlatedRequestHeader'
-    - name: name
-      in: path
-      required: true
-      schema:
-        type: string
-      description: "Uniquely identifies a given device"
-    - $ref: '#/components/parameters/offsetParam'
-    - $ref: '#/components/parameters/limitParam'
     get:
       summary: "Given the entire range of events sorted by created descending, returns a portion of that range according to the device name, offset and limit parameters."
+      parameters:
+        - $ref: '#/components/parameters/correlatedRequestHeader'
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+          description: "Uniquely identifies a given device"
+        - $ref: '#/components/parameters/offsetParam'
+        - $ref: '#/components/parameters/limitParam'
       responses:
         '200':
           description: "OK"
@@ -987,18 +849,18 @@ paths:
                 apiVersion: "v2"
                 statusCode: 200
                 message: ""
-                events: 
+                events:
                   - apiVersion: "v2"
                     created: 1594877691305
                     deviceName: "device-002"
                     id: "73fc4f9c-2d64-4920-addb-b1f33a8f8514"
                     origin: 1602168089665565300
-                    readings: 
+                    readings:
                       - created: 1594879337014
                         deviceName: "device-002"
+                        resourceName: "resource-002"
+                        profileName: "profile-002"
                         id: "71c601d9-cb56-453a-8c75-54461e444713"
-                        labels:
-                          - "image"
                         origin: 1602168089665565300
                         valueType: "Binary"
                         binaryValue: "83010203"
@@ -1012,11 +874,10 @@ paths:
                       - apiVersion: "v2"
                         created: 594983105886
                         deviceName: "device-002"
+                        resourceName: "resource-002"
+                        profileName: "profile-002"
                         id: "7003cacc-0e00-4676-977c-4e58b9612abd"
-                        labels:
-                          - "co2"
                         origin: 1602168089665565300
-                        floatEncoding: "eNotation"
                         valueType: "Float32"
                         value: "12.2"
         '404':
@@ -1028,7 +889,7 @@ paths:
             application/json:
               schema:
                 type: array
-                items: 
+                items:
                   $ref: '#/components/schemas/ErrorResponse'
               examples:
                 404Example:
@@ -1042,8 +903,43 @@ paths:
             application/json:
               schema:
                 type: array
-                items: 
+                items:
                   $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                500Example:
+                  $ref: '#/components/examples/500Example'
+    delete:
+      summary: "Deletes all events for the specified device"
+      parameters:
+        - $ref: '#/components/parameters/correlatedRequestHeader'
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+          description: "Uniquely identifies a given device"
+      responses:
+        '202':
+          description: "Delete request accepted"
+          headers:
+            X-Correlation-ID:
+              $ref: '#/components/headers/correlatedResponseHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BaseResponse'
+              examples:
+                200Example:
+                  $ref: '#/components/examples/202Example'
+        '500':
+          description: "An unexpected error occurred on the server"
+          headers:
+            X-Correlation-ID:
+              $ref: '#/components/headers/correlatedResponseHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
               examples:
                 500Example:
                   $ref: '#/components/examples/500Example'
@@ -1065,7 +961,7 @@ paths:
     - $ref: '#/components/parameters/offsetParam'
     - $ref: '#/components/parameters/limitParam'
     get:
-      summary: "Return a paginated range of events with a create date inside the specified start/end values."
+      summary: "Return a paginated range of events sorted by created descending with a create date inside the specified start/end values."
       responses:
         '200':
           description: "OK"
@@ -1119,8 +1015,8 @@ paths:
     delete:
       summary: "Remove all old events (and associated readings) based on delimiting age"
       responses:
-        '200':
-          description: "Delete successful"
+        '202':
+          description: "Delete request accepted"
           headers:
             X-Correlation-ID:
               $ref: '#/components/headers/correlatedResponseHeader'
@@ -1130,7 +1026,21 @@ paths:
                 $ref: '#/components/schemas/BaseResponse'
               examples:
                 200Example:
-                  $ref: '#/components/examples/200Example'
+                  $ref: '#/components/examples/202Example'
+        '400':
+          description: "\"{age}\" must be a parsable unix timestamp"
+          headers:
+            X-Correlation-ID:
+              $ref: '#/components/headers/correlatedResponseHeader'
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                400Example:
+                  $ref: '#/components/examples/400Example'
         '500':
           description: "An unexpected error occurred on the server"
           headers:
@@ -1142,50 +1052,14 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
               examples:
                 500Example:
-                  $ref: '#/components/examples/500Example' 
-  /event/scrub:
-    parameters:
-    - $ref: '#/components/parameters/correlatedRequestHeader'
-    delete:
-      summary: "Remove all pushed events and their associated readings."
-      responses:
-        '200':
-          description: "Delete successful"
-          headers:
-            X-Correlation-ID:
-              $ref: '#/components/headers/correlatedResponseHeader'
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/BaseResponse'
-              examples:
-                200Example:
-                  $ref: '#/components/examples/200Example'
-        '500':
-          description: "An unexpected error occurred on the server"
-          headers:
-            X-Correlation-ID:
-              $ref: '#/components/headers/correlatedResponseHeader'
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-              examples:
-                500Example:
-                  $ref: '#/components/examples/500Example' 
+                  $ref: '#/components/examples/500Example'
   /reading/all:
     parameters:
       - $ref: '#/components/parameters/correlatedRequestHeader'
       - $ref: '#/components/parameters/offsetParam'
       - $ref: '#/components/parameters/limitParam'
-      - in: query
-        name: labels
-        required: false
-        schema:
-          type: string
-        description: "Allows for querying readings by associated user-defined label. More than one label may be specified via a comma-delimited list."
     get:
-      summary: "Given the entire range of readings sorted by last modified descending, returns a portion of that range according to the offset and limit parameters. Readings returned will all inherit from BaseReading but their concrete types will be either SimpleReading or BinaryReading, potentially interleaved. Readings may be filtered by label."
+      summary: "Given the entire range of readings sorted by created descending, returns a portion of that range according to the offset and limit parameters. Readings returned will all inherit from BaseReading but their concrete types will be either SimpleReading or BinaryReading, potentially interleaved."
       responses:
         '200':
           description: "OK"
@@ -1199,6 +1073,30 @@ paths:
               examples:
                 MultiReadingsExample:
                   $ref: '#/components/examples/AllReadingsExample'
+        '400':
+          description: "Request is in an invalid state"
+          headers:
+            X-Correlation-ID:
+              $ref: '#/components/headers/correlatedResponseHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                400Example:
+                  $ref: '#/components/examples/400Example'
+        '416':
+          description: "Request range is not satisfiable"
+          headers:
+            X-Correlation-ID:
+              $ref: '#/components/headers/correlatedResponseHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                400Example:
+                  $ref: '#/components/examples/416Example'
         '500':
           description: "An unexpected error occurred on the server"
           headers:
@@ -1227,7 +1125,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ReadingCountResponse'
+                $ref: '#/components/schemas/CountResponse'
               example:
                 requestId: ""
                 apiVersion: "v2"
@@ -1246,10 +1144,10 @@ paths:
               examples:
                 500Example:
                   $ref: '#/components/examples/500Example'
-  /reading/count/device/{deviceName}:
+  /reading/count/device/name/{name}:
     parameters:
       - $ref: '#/components/parameters/correlatedRequestHeader'
-      - name: deviceName
+      - name: name
         in: path
         required: true
         schema:
@@ -1266,78 +1164,13 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ReadingCountResponse'
+                $ref: '#/components/schemas/CountResponse'
               example:
                 requestId: ""
                 apiVersion: "v2"
                 statusCode: 200
                 message: ""
                 count: 2
-                deviceName: "device-001"
-        '404':
-          description: "The requested resource does not exist"
-          headers:
-            X-Correlation-ID:
-              $ref: '#/components/headers/correlatedResponseHeader'
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-              examples:
-                404Example:
-                  $ref: '#/components/examples/404Example'
-        '500':
-          description: "An unexpected error occurred on the server"
-          headers:
-            X-Correlation-ID:
-              $ref: '#/components/headers/correlatedResponseHeader'
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-              examples:
-                500Example:
-                  $ref: '#/components/examples/500Example'
-  /reading/id/{id}:
-    parameters:
-    - $ref: '#/components/parameters/correlatedRequestHeader'
-    - name: id
-      in: path
-      required: true
-      schema:
-        type: string
-        format: uuid
-      description: "An ID of datatype string, by default a GUID."
-    get:
-      summary: "Returns a reading by ID"
-      responses:
-        '200':
-          description: "OK"
-          headers:
-            X-Correlation-ID:
-              $ref: '#/components/headers/correlatedResponseHeader'
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ReadingResponse'
-              example:
-                requestId: ""
-                apiVersion: "v2"
-                statusCode: 200
-                message: ""
-                reading:
-                  apiVersion: "v2"
-                  created: 1594876281221
-                  deviceName: "device-001"
-                  id: "31569347-9369-43ec-aa6a-59ea9c624a6f"
-                  labels:
-                    - "power"
-                  modified: 1594975851631
-                  origin: 1602168089665565300
-                  pushed: 1594975851631
-                  floatEncoding: "eNotation"
-                  valueType: "Float32"
-                  value: "39.5"
         '404':
           description: "The requested resource does not exist"
           headers:
@@ -1385,48 +1218,33 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/MultiReadingsResponse'
-              example:
-                requestId: ""
-                apiVersion: "v2"
-                statusCode: 200
-                message: ""
-                readings: 
-                  - apiVersion: "v2"
-                    created: 1594876281221
-                    deviceName: "device-001"
-                    id: "31569347-9369-43ec-aa6a-59ea9c624a6f"
-                    labels:
-                      - "power"
-                    modified: 1594975851631
-                    origin: 1602168089665565300
-                    pushed: 1594975851631
-                    floatEncoding: "eNotation"
-                    valueType: "Float32"
-                    value: "39.5"
-                  - apiVersion: "v2"
-                    create: 1594876281221
-                    deviceName: "device-001"
-                    id: "2fd73a5b-969f-483c-9c52-6bb460a06eb1"
-                    origin: 1602168089665565300
-                    labels:
-                      - "Fahrenheit"
-                      - "temperature"
-                    valueType: "Int8"
-                    value: "75"
-        '404':
-          description: "The requested resource does not exist"
+              examples:
+                MultiReadingsExample:
+                  $ref: '#/components/examples/AllReadingsExample'
+        '400':
+          description: "Request is in an invalid state"
           headers:
             X-Correlation-ID:
               $ref: '#/components/headers/correlatedResponseHeader'
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/ErrorResponse'
+                $ref: '#/components/schemas/ErrorResponse'
               examples:
-                404Example:
-                  $ref: '#/components/examples/404Example'
+                400Example:
+                  $ref: '#/components/examples/400Example'
+        '416':
+          description: "Request range is not satisfiable"
+          headers:
+            X-Correlation-ID:
+              $ref: '#/components/headers/correlatedResponseHeader'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                400Example:
+                  $ref: '#/components/examples/416Example'
         '500':
           description: "An unexpected error occurred on the server"
           headers:
@@ -1441,19 +1259,19 @@ paths:
               examples:
                 500Example:
                   $ref: '#/components/examples/500Example'
-  /reading/valueType/{valueType}:
+  /reading/resourceName/{resourceName}:
     parameters:
     - $ref: '#/components/parameters/correlatedRequestHeader'
-    - name: valueType
+    - name: resourceName
       in: path
       required: true
       schema:
         type: string
-      description: The datatype of a SimpleReading's value property.
+      description: The device resource name of readings.
     - $ref: '#/components/parameters/offsetParam'
     - $ref: '#/components/parameters/limitParam'
     get:
-      summary: Returns a paginated list of SimpleReadings whose value property is of the specified type.
+      summary: Returns a paginated list of SimpleReadings whose resource name is of the specified one.
       responses:
         '200':
           description: "OK"
@@ -1473,27 +1291,25 @@ paths:
                   - apiVersion: "v2"
                     created: 1594876281221
                     deviceName: "device-001"
+                    resourceName: "resource-001"
+                    profileName: "profile-001"
                     id: "31569347-9369-43ec-aa6a-59ea9c624a6f"
-                    labels:
-                      - "power"
                     modified: 1594975851631
                     origin: 1602168089665565300
                     pushed: 1594975851631
-                    floatEncoding: "eNotation"
                     valueType: "Float32"
                     value: "39.5"
                   - apiVersion: "v2"
                     created: 594983105886
                     deviceName: "device-002"
+                    resourceName: "resource-002"
+                    profileName: "profile-002"
                     id: "7003cacc-0e00-4676-977c-4e58b9612abd"
-                    labels:
-                      - "co2"
                     origin: 1602168089665565300
-                    floatEncoding: "eNotation"
                     valueType: "Float32"
                     value: "12.2"
         '400':
-          description: "Request is in an invalid state. \"{valueType}\" is defined in [Reading ValueTypes](https://github.com/edgexfoundry/go-mod-core-contracts/blob/8df1bc237b3746b67ec2754785c71dc83ce5d0c1/models/reading.go#L22-L49)."
+          description: "Request is in an invalid state. \"{resourceName}\" could only contain reserved characters as defined in https://tools.ietf.org/html/rfc3986#section-2.3"
           headers:
             X-Correlation-ID:
               $ref: '#/components/headers/correlatedResponseHeader'
@@ -1662,9 +1478,9 @@ paths:
                     Host: "edgex-vault"
                     Port: 8200
                     Path: "v1/secret/edgex/coredata/"
-                    Protocol: "httpsxf"
+                    Protocol: "http"
                     Namespace: ""
-                    RootCaCertPath: "/tmp/edgex/secrets/ca/ca.pem"
+                    RootCaCertPath: ""
                     ServerName: "edgex-vault" 
                     Authentication:
                       AuthType: "X-Vault-Token"  

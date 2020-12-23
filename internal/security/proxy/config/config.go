@@ -20,12 +20,11 @@ import (
 	"net/url"
 
 	bootstrapConfig "github.com/edgexfoundry/go-mod-bootstrap/config"
-	"github.com/edgexfoundry/go-mod-secrets/pkg/providers/vault"
+	"github.com/edgexfoundry/go-mod-secrets/pkg/types"
 )
 
 type ConfigurationStruct struct {
 	Writable      WritableInfo
-	Logging       bootstrapConfig.LoggingInfo
 	KongURL       KongUrlInfo
 	KongAuth      KongAuthInfo
 	KongACL       KongAclInfo
@@ -76,6 +75,7 @@ type KongAclInfo struct {
 }
 
 type SecretServiceInfo struct {
+	Protocol        string
 	Server          string
 	Port            int
 	HealthcheckPath string
@@ -86,11 +86,7 @@ type SecretServiceInfo struct {
 }
 
 func (s SecretServiceInfo) GetSecretSvcBaseURL() string {
-	url := &url.URL{
-		Scheme: "https",
-		Host:   fmt.Sprintf("%s:%v", s.Server, s.Port),
-	}
-	return url.String()
+	return fmt.Sprintf("%s://%s:%d", s.Protocol, s.Server, s.Port)
 }
 
 // UpdateFromRaw converts configuration received from the registry to a service-specific configuration struct which is
@@ -134,10 +130,10 @@ func (c *ConfigurationStruct) GetBootstrap() bootstrapConfig.BootstrapConfigurat
 		Host:                    c.SecretService.Server,
 		Port:                    c.SecretService.Port,
 		Path:                    c.SecretService.CertPath,
-		Protocol:                "https",
+		Protocol:                c.SecretService.Protocol,
 		RootCaCertPath:          c.SecretService.CACertPath,
 		ServerName:              c.SecretService.Server,
-		Authentication:          vault.AuthenticationInfo{AuthType: "X-Vault-Token"},
+		Authentication:          types.AuthenticationInfo{AuthType: "X-Vault-Token"},
 		AdditionalRetryAttempts: 10,
 		RetryWaitPeriod:         "5s",
 		TokenFile:               c.SecretService.TokenPath,
@@ -146,7 +142,6 @@ func (c *ConfigurationStruct) GetBootstrap() bootstrapConfig.BootstrapConfigurat
 	// temporary until we can make backwards-breaking configuration.toml change
 	return bootstrapConfig.BootstrapConfiguration{
 		Clients:     c.Clients,
-		Logging:     c.Logging,
 		SecretStore: ss,
 	}
 }
@@ -164,4 +159,9 @@ func (c *ConfigurationStruct) GetRegistryInfo() bootstrapConfig.RegistryInfo {
 // GetDatabaseInfo returns a database information map.
 func (c *ConfigurationStruct) GetDatabaseInfo() map[string]bootstrapConfig.Database {
 	panic("GetDatabaseInfo() called unexpectedly.")
+}
+
+// GetInsecureSecrets returns the service's InsecureSecrets which this service doesn't support
+func (c *ConfigurationStruct) GetInsecureSecrets() bootstrapConfig.InsecureSecrets {
+	return nil
 }

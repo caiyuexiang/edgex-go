@@ -20,6 +20,9 @@ type DBClient interface {
 	DeleteDeviceProfileByName(name string) errors.EdgeX
 	DeviceProfileNameExists(name string) (bool, errors.EdgeX)
 	AllDeviceProfiles(offset int, limit int, labels []string) ([]model.DeviceProfile, errors.EdgeX)
+	DeviceProfilesByModel(offset int, limit int, model string) ([]model.DeviceProfile, errors.EdgeX)
+	DeviceProfilesByManufacturer(offset int, limit int, manufacturer string) ([]model.DeviceProfile, errors.EdgeX)
+	DeviceProfilesByManufacturerAndModel(offset int, limit int, manufacturer string, model string) ([]model.DeviceProfile, errors.EdgeX)
 
 	AddDeviceService(e model.DeviceService) (model.DeviceService, errors.EdgeX)
 	DeviceServiceById(id string) (model.DeviceService, errors.EdgeX)
@@ -38,4 +41,5 @@ type DBClient interface {
 	DeviceById(id string) (model.Device, errors.EdgeX)
 	DeviceByName(name string) (model.Device, errors.EdgeX)
 	AllDevices(offset int, limit int, labels []string) ([]model.Device, errors.EdgeX)
+	DevicesByProfileName(offset int, limit int, profileName string) ([]model.Device, errors.EdgeX)
 }

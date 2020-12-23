@@ -24,12 +24,13 @@ Now that you have EdgeX up and running, you can follow our [API Walkthrough](htt
 
 ## Running EdgeX with security components
 
-Starting with the Fuji release, EdgeX includes enhanced security features that are enabled by default. There are 3 major components that are responsible for security
+Starting with the Fuji release, EdgeX includes enhanced security features that are enabled by default. There are a few major components that are responsible for security
 features: 
 
-- Security-secrets-setup
 - Security-secretstore-setup
 - Security-proxy-setup
+
+As part of Ireland release, the `security-secrets-setup` service is no more as internal service-to-service communication will not run in TLS by default in a single box.
 
 When security features are enabled, additional steps are required to access the resources of EdgeX.
 
@@ -122,7 +123,7 @@ cd bin
 ./edge-launch.sh
 ```
 
-**Note** You must have a database (Mongo or Redis) running before the services will operate
+**Note** You must have a database (Redis) running before the services will operate
 correctly. If you don't want to install a database locally, you can host one via Docker. You may
 also need to change the `configuration.toml` files for one or more of the services.
 
@@ -142,7 +143,7 @@ Follow the "Installation and Execution" steps above for obtaining and building t
 make docker run_docker
 ```
 
-**Note** The default behavior is to use Redis for the database, use the command `make EDGEX_DB=mongo run_docker` to start EdgeX with Mongo.
+**Note** The default behavior is to use Redis for the database.
 
 ## Community
 

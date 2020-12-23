@@ -24,6 +24,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -79,10 +80,10 @@ func (b *Bootstrap) BootstrapHandler(ctx context.Context, _ *sync.WaitGroup, _ s
 		req = secretstoreclient.NewRequestor(lc).Insecure()
 	}
 
-	vaultScheme := configuration.SecretService.Scheme
+	vaultProtocol := configuration.SecretService.Protocol
 	vaultHost := fmt.Sprintf("%s:%v", configuration.SecretService.Server, configuration.SecretService.Port)
 	intervalDuration := time.Duration(b.vaultInterval) * time.Second
-	vc := secretstoreclient.NewSecretStoreClient(lc, req, vaultScheme, vaultHost)
+	vc := secretstoreclient.NewSecretStoreClient(lc, req, vaultProtocol, vaultHost)
 	pipedHexReader := pipedhexreader.NewPipedHexReader()
 	kdf := kdf.NewKdf(fileOpener, configuration.SecretService.TokenFolderPath, sha256.New)
 	vmkEncryption := NewVMKEncryption(fileOpener, pipedHexReader, kdf)
@@ -295,18 +296,14 @@ func (b *Bootstrap) BootstrapHandler(ctx context.Context, _ *sync.WaitGroup, _ s
 
 	// continue credential creation
 
-	// A little note on why there are two secrets paths. For each microservice, the username/password
-	// is uploaded to the vault on both /v1/secret/edgex/%s/mongodb and /v1/secret/edgex/mongo/%s).
-	// The go-mod-secrets client requires a Path property to prefix all secrets. docker-edgex-mongo
-	// uses that
-	// (https://github.com/edgexfoundry/docker-edgex-mongo/blob/master/cmd/res/configuration.toml) in
-	// order to enumerate the users and passwords when setting up the initial database authentication.
-	// So edgex/%s/mongodb is for the microservices (microservices are restricted to their specific
-	// edgex/%s), and edgex/mongo/* is enumerated by docker-edgex-mongo to initialize the database.
+	// A little note on why there are two secrets paths. For each microservice, the
+	// username/password is uploaded to the vault on both /v1/secret/edgex/%s/redisdb and
+	// /v1/secret/edgex/redisdb/%s). The go-mod-secrets client requires a Path property to prefix all
+	// secrets.
+	// So edgex/%s/redisdb is for the microservices (microservices are restricted to their specific
+	// edgex/%s), and edgex/redisdb/* is enumerated to initialize the database.
 	//
-	// The Redis implementation parallels the existing Mongo code but until the update for Redis 6,
-	// there is only a single Redis password.
-	//
+
 	// Redis 5.x only supports a single shared password. When Redis 6 is released, this can be updated
 	// to a per service password.
 
@@ -320,38 +317,16 @@ func (b *Bootstrap) BootstrapHandler(ctx context.Context, _ *sync.WaitGroup, _ s
 		Password: redis5Password,
 	}
 
-	for dbname, info := range configuration.Databases {
+	for _, info := range configuration.Databases {
 		service := info.Service
-		// generate credentials
-		password, err := cred.GeneratePassword(ctx)
-		if err != nil {
-			lc.Error(fmt.Sprintf("failed to generate credential pair for service %s", service))
-			os.Exit(1)
-		}
-		pair := UserPasswordPair{
-			User:     info.Username,
-			Password: password,
-		}
 
 		// add credentials to service path if specified and they're not already there
 		if len(service) != 0 {
-			err = addServiceCredential(lc, "mongodb", cred, service, pair)
-			if err != nil {
-				lc.Error(err.Error())
-				os.Exit(1)
-			}
-
 			err = addServiceCredential(lc, "redisdb", cred, service, redis5Pair)
 			if err != nil {
 				lc.Error(err.Error())
 				os.Exit(1)
 			}
-		}
-
-		err = addDBCredential(lc, "mongo", cred, dbname, pair)
-		if err != nil {
-			lc.Error(err.Error())
-			os.Exit(1)
 		}
 	}
 
@@ -363,36 +338,52 @@ func (b *Bootstrap) BootstrapHandler(ctx context.Context, _ *sync.WaitGroup, _ s
 		os.Exit(1)
 	}
 
-	cert := NewCerts(req, configuration.SecretService.CertPath, rootToken, configuration.SecretService.GetSecretSvcBaseURL(), lc)
-	existing, err := cert.AlreadyinStore()
-	if err != nil {
-		lc.Error(err.Error())
-		os.Exit(1)
+	// Concat all cert path config vals together to check for empty vals
+	certPathCheck := configuration.SecretService.CertPath +
+		configuration.SecretService.CertFilePath +
+		configuration.SecretService.KeyFilePath
+
+	// If any of the previous three proxy cert path values are present (len > 0), attempt to upload to secret store
+	if len(strings.TrimSpace(certPathCheck)) != 0 {
+
+		// Grab the certificate & check to see if it's already in the secret store
+		cert := NewCerts(req, configuration.SecretService.CertPath, rootToken, configuration.SecretService.GetSecretSvcBaseURL(), lc)
+		existing, err := cert.AlreadyinStore()
+		if err != nil {
+			lc.Error(err.Error())
+			os.Exit(1)
+		}
+
+		if existing {
+			lc.Info("proxy certificate pair are in the secret store already, skip uploading")
+			return false
+		}
+
+		lc.Info("proxy certificate pair are not in the secret store yet, uploading them")
+		cp, err := cert.ReadFrom(configuration.SecretService.CertFilePath, configuration.SecretService.KeyFilePath)
+		if err != nil {
+			lc.Error("failed to get certificate pair from volume")
+			os.Exit(1)
+		}
+
+		lc.Info("proxy certificate pair are loaded from volume successfully, will upload to secret store")
+
+		err = cert.UploadToStore(cp)
+		if err != nil {
+			lc.Error("failed to upload the proxy cert pair into the secret store")
+			lc.Error(err.Error())
+			os.Exit(1)
+		}
+
+		lc.Info("proxy certificate pair are uploaded to secret store successfully")
+
+	} else {
+		lc.Info("proxy certificate pair upload was skipped because cert config value(s) were blank")
 	}
 
-	if existing == true {
-		lc.Info("proxy certificate pair are in the secret store already, skip uploading")
-		return false
-	}
-
-	lc.Info("proxy certificate pair are not in the secret store yet, uploading them")
-	cp, err := cert.ReadFrom(configuration.SecretService.CertFilePath, configuration.SecretService.KeyFilePath)
-	if err != nil {
-		lc.Error("failed to get certificate pair from volume")
-		os.Exit(1)
-	}
-
-	lc.Info("proxy certificate pair are loaded from volume successfully, will upload to secret store")
-
-	err = cert.UploadToStore(cp)
-	if err != nil {
-		lc.Error("failed to upload the proxy cert pair into the secret store")
-		lc.Error(err.Error())
-		os.Exit(1)
-	}
-
-	lc.Info("proxy certificate pair are uploaded to secret store successfully, Vault init done successfully")
+	lc.Info("Vault init done successfully")
 	return false
+
 }
 
 // XXX Collapse addServiceCredential and addDBCredential together by passing in the path or using

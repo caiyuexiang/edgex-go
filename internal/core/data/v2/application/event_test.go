@@ -5,17 +5,17 @@ import (
 	"net/http"
 	"testing"
 
+	"github.com/edgexfoundry/go-mod-bootstrap/di"
+	v2 "github.com/edgexfoundry/go-mod-core-contracts/v2"
+
 	"github.com/edgexfoundry/edgex-go/internal/core/data/config"
 	dataContainer "github.com/edgexfoundry/edgex-go/internal/core/data/container"
 	v2DataContainer "github.com/edgexfoundry/edgex-go/internal/core/data/v2/bootstrap/container"
 	dbMock "github.com/edgexfoundry/edgex-go/internal/core/data/v2/infrastructure/interfaces/mocks"
 	"github.com/edgexfoundry/edgex-go/internal/core/data/v2/mocks"
-	"github.com/edgexfoundry/edgex-go/internal/pkg/db"
-
-	"github.com/edgexfoundry/go-mod-bootstrap/di"
+	"github.com/edgexfoundry/edgex-go/internal/pkg/v2/utils"
 
 	"github.com/edgexfoundry/go-mod-core-contracts/errors"
-	"github.com/edgexfoundry/go-mod-core-contracts/v2/dtos"
 	"github.com/edgexfoundry/go-mod-core-contracts/v2/models"
 
 	"github.com/google/uuid"
@@ -26,9 +26,8 @@ import (
 )
 
 const (
-	testDeviceName     string = "Test Device"
+	testDeviceName     string = "TestDevice"
 	testUUIDString     string = "ca93c8fa-9919-4ec5-85d3-f81b2b6a7bc1"
-	testPushedTime            = 1600666231295
 	testCreatedTime           = 1600666214495
 	testOriginTime            = 1600666185705354000
 	nonexistentEventID        = "8ad33474-fbc5-11ea-adc1-0242ac120002"
@@ -37,7 +36,6 @@ const (
 
 var persistedEvent = models.Event{
 	Id:         testUUIDString,
-	Pushed:     testPushedTime,
 	DeviceName: testDeviceName,
 	Created:    testCreatedTime,
 	Origin:     testOriginTime,
@@ -45,29 +43,29 @@ var persistedEvent = models.Event{
 }
 
 func buildReadings() []models.Reading {
-	ticks := db.MakeTimestamp()
+	ticks := utils.MakeTimestamp()
 
 	r1 := models.SimpleReading{
 		BaseReading: models.BaseReading{
-			Id:         uuid.New().String(),
-			Created:    ticks,
-			Origin:     testOriginTime,
-			DeviceName: testDeviceName,
-			Name:       "Temperature",
-			Labels:     []string{"Fahrenheit"},
-			ValueType:  dtos.ValueTypeUint16,
+			Id:           uuid.New().String(),
+			Created:      ticks,
+			Origin:       testOriginTime,
+			DeviceName:   testDeviceName,
+			ResourceName: "Temperature",
+			ProfileName:  "TempProfile",
+			ValueType:    v2.ValueTypeUint16,
 		},
 		Value: "45",
 	}
 
 	r2 := models.BinaryReading{
 		BaseReading: models.BaseReading{
-			Id:         uuid.New().String(),
-			Created:    ticks,
-			Origin:     testOriginTime,
-			DeviceName: testDeviceName,
-			Name:       "FileData",
-			Labels:     []string{"text"},
+			Id:           uuid.New().String(),
+			Created:      ticks,
+			Origin:       testOriginTime,
+			DeviceName:   testDeviceName,
+			ResourceName: "FileData",
+			ProfileName:  "FileDataProfile",
 		},
 		BinaryValue: []byte("1010"),
 		MediaType:   "file",
@@ -89,6 +87,8 @@ func newMockDB(persist bool) *dbMock.DBClient {
 		myMock.On("DeleteEventById", testUUIDString).Return(nil)
 		myMock.On("EventTotalCount").Return(testEventCount, nil)
 		myMock.On("EventCountByDevice", testDeviceName).Return(testEventCount, nil)
+		myMock.On("DeleteEventsByDeviceName", testDeviceName).Return(nil)
+		myMock.On("DeleteEventsByAge", int64(0)).Return(nil)
 	}
 
 	return myMock
@@ -256,4 +256,101 @@ func TestEventCountByDevice(t *testing.T) {
 	count, err := EventCountByDevice(testDeviceName, dic)
 	require.NoError(t, err)
 	assert.Equal(t, testEventCount, count, "Event total count is not expected")
+}
+
+func TestDeleteEventsByDeviceName(t *testing.T) {
+	dbClientMock := newMockDB(true)
+
+	dic := mocks.NewMockDIC()
+	dic.Update(di.ServiceConstructorMap{
+		v2DataContainer.DBClientInterfaceName: func(get di.Get) interface{} {
+			return dbClientMock
+		},
+	})
+
+	tests := []struct {
+		Name               string
+		deviceName         string
+		ErrorExpected      bool
+		ExpectedErrKind    errors.ErrKind
+		ExpectedStatusCode int
+	}{
+		{"Valid - Delete Event by Id", testDeviceName, false, errors.KindInvalidId, http.StatusOK},
+		{"Invalid - Empty device name", "", true, errors.KindInvalidId, http.StatusBadRequest},
+		{"Invalid - Empty device name with spaces", " \n\t\r ", true, errors.KindInvalidId, http.StatusBadRequest},
+	}
+
+	for _, testCase := range tests {
+		t.Run(testCase.Name, func(t *testing.T) {
+			err := DeleteEventsByDeviceName(testCase.deviceName, dic)
+
+			if testCase.ErrorExpected {
+				require.Error(t, err)
+				assert.NotEmpty(t, err.Error(), "Error message is empty")
+				assert.Equal(t, testCase.ExpectedErrKind, errors.Kind(err), "Error kind not as expected")
+				assert.Equal(t, testCase.ExpectedStatusCode, err.Code(), "Error code not as expected")
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}
+
+func TestEventsByTimeRange(t *testing.T) {
+	event1 := persistedEvent
+	event2 := persistedEvent
+	event2.Created = event2.Created + 20
+	event3 := persistedEvent
+	event3.Created = event3.Created + 30
+	event4 := persistedEvent
+	event4.Created = event4.Created + 40
+	event5 := persistedEvent
+	event5.Created = event5.Created + 50
+
+	dic := mocks.NewMockDIC()
+	dbClientMock := &dbMock.DBClient{}
+	dbClientMock.On("EventsByTimeRange", int(event1.Created), int(event5.Created), 0, 10).Return([]models.Event{event5, event4, event3, event2, event1}, nil)
+	dbClientMock.On("EventsByTimeRange", int(event2.Created), int(event4.Created), 0, 10).Return([]models.Event{event4, event3, event2}, nil)
+	dbClientMock.On("EventsByTimeRange", int(event2.Created), int(event4.Created), 1, 2).Return([]models.Event{event3, event2}, nil)
+	dic.Update(di.ServiceConstructorMap{
+		v2DataContainer.DBClientInterfaceName: func(get di.Get) interface{} {
+			return dbClientMock
+		},
+	})
+
+	tests := []struct {
+		name               string
+		start              int
+		end                int
+		offset             int
+		limit              int
+		errorExpected      bool
+		expectedCount      int
+		expectedStatusCode int
+	}{
+		{"Valid - all events", int(event1.Created), int(event5.Created), 0, 10, false, 5, http.StatusOK},
+		{"Valid - events trimmed by latest and oldest", int(event2.Created), int(event4.Created), 0, 10, false, 3, http.StatusOK},
+		{"Valid - events trimmed by latest and oldest and skipped first", int(event2.Created), int(event4.Created), 1, 2, false, 2, http.StatusOK},
+	}
+	for _, testCase := range tests {
+		t.Run(testCase.name, func(t *testing.T) {
+			events, err := EventsByTimeRange(testCase.start, testCase.end, testCase.offset, testCase.limit, dic)
+			require.NoError(t, err)
+			assert.Equal(t, testCase.expectedCount, len(events), "Event total count is not expected")
+		})
+	}
+}
+
+func TestDeleteEventsByAge(t *testing.T) {
+	dbClientMock := newMockDB(true)
+
+	dic := mocks.NewMockDIC()
+	dic.Update(di.ServiceConstructorMap{
+		v2DataContainer.DBClientInterfaceName: func(get di.Get) interface{} {
+			return dbClientMock
+		},
+	})
+
+	err := DeleteEventsByAge(0, dic)
+	require.NoError(t, err)
 }

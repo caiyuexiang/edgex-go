@@ -19,8 +19,6 @@ import (
 	dbMock "github.com/edgexfoundry/edgex-go/internal/core/data/v2/infrastructure/interfaces/mocks"
 	"github.com/edgexfoundry/edgex-go/internal/core/data/v2/mocks"
 	"github.com/edgexfoundry/go-mod-bootstrap/di"
-	"github.com/gomodule/redigo/redis"
-
 	"github.com/edgexfoundry/go-mod-core-contracts/errors"
 	"github.com/edgexfoundry/go-mod-core-contracts/v2"
 	"github.com/edgexfoundry/go-mod-core-contracts/v2/dtos"
@@ -28,7 +26,6 @@ import (
 	"github.com/edgexfoundry/go-mod-core-contracts/v2/dtos/requests"
 	responseDTO "github.com/edgexfoundry/go-mod-core-contracts/v2/dtos/responses"
 	"github.com/edgexfoundry/go-mod-core-contracts/v2/models"
-
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
 	"github.com/stretchr/testify/assert"
@@ -39,10 +36,11 @@ var expectedCorrelationId = uuid.New().String()
 var expectedEventId = uuid.New().String()
 
 var testReading = dtos.BaseReading{
-	DeviceName: TestDeviceName,
-	Name:       TestDeviceResourceName,
-	Origin:     TestOriginTime,
-	ValueType:  dtos.ValueTypeUint8,
+	DeviceName:   TestDeviceName,
+	ResourceName: TestDeviceResourceName,
+	ProfileName:  TestDeviceProfileName,
+	Origin:       TestOriginTime,
+	ValueType:    v2.ValueTypeUint8,
 	SimpleReading: dtos.SimpleReading{
 		Value: TestReadingValue,
 	},
@@ -53,32 +51,34 @@ var testAddEvent = requests.AddEventRequest{
 		RequestId: ExampleUUID,
 	},
 	Event: dtos.Event{
-		Id:         expectedEventId,
-		DeviceName: TestDeviceName,
-		Origin:     TestOriginTime,
-		Readings:   []dtos.BaseReading{testReading},
+		Id:          expectedEventId,
+		DeviceName:  TestDeviceName,
+		ProfileName: TestDeviceProfileName,
+		Origin:      TestOriginTime,
+		Readings:    []dtos.BaseReading{testReading},
 	},
 }
 
 var persistedReading = models.SimpleReading{
 	BaseReading: models.BaseReading{
-		Id:         ExampleUUID,
-		Created:    TestCreatedTime,
-		Origin:     TestOriginTime,
-		DeviceName: TestDeviceName,
-		Name:       TestDeviceResourceName,
-		ValueType:  dtos.ValueTypeUint8,
+		Id:           ExampleUUID,
+		Created:      TestCreatedTime,
+		Origin:       TestOriginTime,
+		DeviceName:   TestDeviceName,
+		ResourceName: TestDeviceResourceName,
+		ProfileName:  TestDeviceProfileName,
+		ValueType:    v2.ValueTypeUint8,
 	},
 	Value: TestReadingValue,
 }
 
 var persistedEvent = models.Event{
-	Id:         expectedEventId,
-	Pushed:     TestPushedTime,
-	DeviceName: TestDeviceName,
-	Created:    TestCreatedTime,
-	Origin:     TestOriginTime,
-	Readings:   []models.Reading{persistedReading},
+	Id:          expectedEventId,
+	DeviceName:  TestDeviceName,
+	ProfileName: TestDeviceProfileName,
+	Created:     TestCreatedTime,
+	Origin:      TestOriginTime,
+	Readings:    []models.Reading{persistedReading},
 }
 
 func TestAddEvent(t *testing.T) {
@@ -116,6 +116,8 @@ func TestAddEvent(t *testing.T) {
 	badEventID.Event.Id = "DIWNI09320"
 	noEventDevice := validRequest
 	noEventDevice.Event.DeviceName = ""
+	noEventProfile := validRequest
+	noEventProfile.Event.ProfileName = ""
 	noEventOrigin := validRequest
 	noEventOrigin.Event.Origin = 0
 
@@ -124,9 +126,12 @@ func TestAddEvent(t *testing.T) {
 	noReadingDevice := validRequest
 	noReadingDevice.Event.Readings = []dtos.BaseReading{testReading}
 	noReadingDevice.Event.Readings[0].DeviceName = ""
-	noReadingName := validRequest
-	noReadingName.Event.Readings = []dtos.BaseReading{testReading}
-	noReadingName.Event.Readings[0].Name = ""
+	noReadingResourceName := validRequest
+	noReadingResourceName.Event.Readings = []dtos.BaseReading{testReading}
+	noReadingResourceName.Event.Readings[0].ResourceName = ""
+	noReadingProfileName := validRequest
+	noReadingProfileName.Event.Readings = []dtos.BaseReading{testReading}
+	noReadingProfileName.Event.Readings[0].ProfileName = ""
 	noReadingOrigin := validRequest
 	noReadingOrigin.Event.Readings = []dtos.BaseReading{testReading}
 	noReadingOrigin.Event.Readings[0].Origin = 0
@@ -140,16 +145,13 @@ func TestAddEvent(t *testing.T) {
 	noSimpleValue := validRequest
 	noSimpleValue.Event.Readings = []dtos.BaseReading{testReading}
 	noSimpleValue.Event.Readings[0].Value = ""
-	noSimpleFloatEnconding := validRequest
-	noSimpleFloatEnconding.Event.Readings = []dtos.BaseReading{testReading}
-	noSimpleFloatEnconding.Event.Readings[0].ValueType = dtos.ValueTypeFloat32
-	noSimpleFloatEnconding.Event.Readings[0].FloatEncoding = ""
 	noBinaryValue := validRequest
 	noBinaryValue.Event.Readings = []dtos.BaseReading{{
-		DeviceName: TestDeviceName,
-		Name:       TestDeviceResourceName,
-		Origin:     TestOriginTime,
-		ValueType:  dtos.ValueTypeBinary,
+		DeviceName:   TestDeviceName,
+		ResourceName: TestDeviceResourceName,
+		ProfileName:  TestDeviceProfileName,
+		Origin:       TestOriginTime,
+		ValueType:    v2.ValueTypeBinary,
 		BinaryReading: dtos.BinaryReading{
 			BinaryValue: []byte{},
 			MediaType:   TestBinaryReadingMediaType,
@@ -157,10 +159,11 @@ func TestAddEvent(t *testing.T) {
 	}}
 	noBinaryMediaType := validRequest
 	noBinaryMediaType.Event.Readings = []dtos.BaseReading{{
-		DeviceName: TestDeviceName,
-		Name:       TestDeviceResourceName,
-		Origin:     TestOriginTime,
-		ValueType:  dtos.ValueTypeBinary,
+		DeviceName:   TestDeviceName,
+		ResourceName: TestDeviceResourceName,
+		ProfileName:  TestDeviceProfileName,
+		Origin:       TestOriginTime,
+		ValueType:    v2.ValueTypeBinary,
 		BinaryReading: dtos.BinaryReading{
 			BinaryValue: []byte(TestReadingBinaryValue),
 			MediaType:   "",
@@ -180,15 +183,16 @@ func TestAddEvent(t *testing.T) {
 		{"Invalid - No Event Id", []requests.AddEventRequest{noEventID}, true, http.StatusBadRequest},
 		{"Invalid - Bad Event Id", []requests.AddEventRequest{badEventID}, true, http.StatusBadRequest},
 		{"Invalid - No Event DeviceName", []requests.AddEventRequest{noEventDevice}, true, http.StatusBadRequest},
+		{"Invalid - No Event ProfileName", []requests.AddEventRequest{noEventProfile}, true, http.StatusBadRequest},
 		{"Invalid - No Event Origin", []requests.AddEventRequest{noEventOrigin}, true, http.StatusBadRequest},
 		{"Invalid - No Reading", []requests.AddEventRequest{noReading}, true, http.StatusBadRequest},
 		{"Invalid - No Reading DeviceName", []requests.AddEventRequest{noReadingDevice}, true, http.StatusBadRequest},
-		{"Invalid - No Reading Name", []requests.AddEventRequest{noReadingName}, true, http.StatusBadRequest},
+		{"Invalid - No Reading ResourceName", []requests.AddEventRequest{noReadingResourceName}, true, http.StatusBadRequest},
+		{"Invalid - No Reading ProfileName", []requests.AddEventRequest{noReadingProfileName}, true, http.StatusBadRequest},
 		{"Invalid - No Reading Origin", []requests.AddEventRequest{noReadingOrigin}, true, http.StatusBadRequest},
 		{"Invalid - No Reading ValueType", []requests.AddEventRequest{noReadingValueType}, true, http.StatusBadRequest},
 		{"Invalid - Invalid Reading ValueType", []requests.AddEventRequest{invalidReadingInvalidValueType}, true, http.StatusBadRequest},
 		{"Invalid - No SimpleReading Value", []requests.AddEventRequest{noSimpleValue}, true, http.StatusBadRequest},
-		{"Invalid - No SimpleReading FloatEncoding", []requests.AddEventRequest{noSimpleFloatEnconding}, true, http.StatusBadRequest},
 		{"Invalid - No BinaryReading BinaryValue", []requests.AddEventRequest{noBinaryValue}, true, http.StatusBadRequest},
 		{"Invalid - No BinaryReading MediaType", []requests.AddEventRequest{noBinaryMediaType}, true, http.StatusBadRequest},
 	}
@@ -366,13 +370,12 @@ func TestEventTotalCount(t *testing.T) {
 	handler := http.HandlerFunc(ec.EventTotalCount)
 	handler.ServeHTTP(recorder, req)
 
-	var actualResponse responseDTO.EventCountResponse
+	var actualResponse common.CountResponse
 	err = json.Unmarshal(recorder.Body.Bytes(), &actualResponse)
 	require.NoError(t, err)
 	assert.Equal(t, v2.ApiVersion, actualResponse.ApiVersion, "API Version not as expected")
 	assert.Equal(t, http.StatusOK, recorder.Result().StatusCode, "HTTP status code not as expected")
 	assert.Equal(t, http.StatusOK, int(actualResponse.StatusCode), "Response status code not as expected")
-	assert.Empty(t, actualResponse.DeviceName, "Device name should be empty when counting all the events")
 	assert.Empty(t, actualResponse.Message, "Message should be empty when it is successful")
 	assert.Equal(t, expectedEventCount, actualResponse.Count, "Event count in the response body is not expected")
 }
@@ -391,15 +394,15 @@ func TestEventCountByDevice(t *testing.T) {
 	})
 	ec := NewEventController(dic)
 
-	req, err := http.NewRequest(http.MethodGet, v2.ApiEventCountByDeviceRoute, http.NoBody)
-	req = mux.SetURLVars(req, map[string]string{v2.DeviceName: deviceName})
+	req, err := http.NewRequest(http.MethodGet, v2.ApiEventCountByDeviceNameRoute, http.NoBody)
+	req = mux.SetURLVars(req, map[string]string{v2.Name: deviceName})
 	require.NoError(t, err)
 
 	recorder := httptest.NewRecorder()
 	handler := http.HandlerFunc(ec.EventCountByDevice)
 	handler.ServeHTTP(recorder, req)
 
-	var actualResponse responseDTO.EventCountResponse
+	var actualResponse common.CountResponse
 	err = json.Unmarshal(recorder.Body.Bytes(), &actualResponse)
 	require.NoError(t, err)
 	assert.Equal(t, v2.ApiVersion, actualResponse.ApiVersion, "API Version not as expected")
@@ -407,25 +410,12 @@ func TestEventCountByDevice(t *testing.T) {
 	assert.Equal(t, http.StatusOK, int(actualResponse.StatusCode), "Response status code not as expected")
 	assert.Empty(t, actualResponse.Message, "Message should be empty when it is successful")
 	assert.Equal(t, expectedEventCount, actualResponse.Count, "Event count in the response body is not expected")
-	assert.Equal(t, deviceName, actualResponse.DeviceName, "Device name in the response body is not expected")
 }
 
-func TestUpdateEventPushedById(t *testing.T) {
-	expectedResponseCode := http.StatusMultiStatus
-
-	var testUpdateEventPushedByIdEvent = requests.UpdateEventPushedByIdRequest{
-		BaseRequest: common.BaseRequest{
-			RequestId: ExampleUUID,
-		},
-		Id: expectedEventId,
-	}
-
-	notFoundEventId := testUpdateEventPushedByIdEvent
-	notFoundEventId.Id = uuid.New().String()
-
+func TestDeleteEventsByDeviceName(t *testing.T) {
+	deviceName := "deviceA"
 	dbClientMock := &dbMock.DBClient{}
-	dbClientMock.On("UpdateEventPushedById", expectedEventId).Return(nil)
-	dbClientMock.On("UpdateEventPushedById", notFoundEventId.Id).Return(errors.NewCommonEdgeX(errors.KindEntityDoesNotExist, fmt.Sprintf("object doesn't exist in the database"), redis.ErrNil))
+	dbClientMock.On("DeleteEventsByDeviceName", deviceName).Return(nil)
 
 	dic := mocks.NewMockDIC()
 	dic.Update(di.ServiceConstructorMap{
@@ -435,49 +425,20 @@ func TestUpdateEventPushedById(t *testing.T) {
 	})
 	ec := NewEventController(dic)
 
-	tests := []struct {
-		Name               string
-		Request            []requests.UpdateEventPushedByIdRequest
-		ErrorExpected      bool
-		ExpectedStatusCode int
-	}{
-		{"Valid - UpdateEventPushedByIdRequest", []requests.UpdateEventPushedByIdRequest{testUpdateEventPushedByIdEvent}, false, http.StatusOK},
-		{"Invalid - Event Id not found", []requests.UpdateEventPushedByIdRequest{notFoundEventId}, true, http.StatusNotFound},
-	}
+	req, err := http.NewRequest(http.MethodDelete, v2.ApiEventByDeviceNameRoute, http.NoBody)
+	req = mux.SetURLVars(req, map[string]string{v2.Name: deviceName})
+	require.NoError(t, err)
 
-	for _, testCase := range tests {
-		t.Run(testCase.Name, func(t *testing.T) {
-			jsonData, err := json.Marshal(testCase.Request)
-			require.NoError(t, err)
+	recorder := httptest.NewRecorder()
+	handler := http.HandlerFunc(ec.DeleteEventsByDeviceName)
+	handler.ServeHTTP(recorder, req)
 
-			reader := strings.NewReader(string(jsonData))
+	var actualResponse common.BaseResponse
+	err = json.Unmarshal(recorder.Body.Bytes(), &actualResponse)
 
-			req, err := http.NewRequest(http.MethodPut, v2.ApiEventPushRoute, reader)
-			require.NoError(t, err)
-
-			recorder := httptest.NewRecorder()
-			handler := http.HandlerFunc(ec.UpdateEventPushedById)
-			handler.ServeHTTP(recorder, req)
-
-			var actualResponse []responseDTO.UpdateEventPushedByIdResponse
-			err = json.Unmarshal(recorder.Body.Bytes(), &actualResponse)
-
-			if testCase.ErrorExpected {
-				assert.Equal(t, expectedResponseCode, recorder.Result().StatusCode, "HTTP status code not as expected")
-				assert.Equal(t, testCase.ExpectedStatusCode, int(actualResponse[0].StatusCode), "BaseResponse status code not as expected")
-				return // Test complete for error cases
-			}
-
-			require.NoError(t, err)
-			assert.Equal(t, expectedResponseCode, recorder.Result().StatusCode, "HTTP status code not as expected")
-			assert.Equal(t, v2.ApiVersion, actualResponse[0].ApiVersion, "API Version not as expected")
-			assert.Equal(t, testCase.ExpectedStatusCode, int(actualResponse[0].StatusCode), "BaseResponse status code not as expected")
-			if actualResponse[0].RequestId != "" {
-				assert.Equal(t, ExampleUUID, actualResponse[0].RequestId, "RequestID not as expected")
-			}
-			assert.Empty(t, actualResponse[0].Message, "Message should be empty when it is successful")
-		})
-	}
+	assert.Equal(t, v2.ApiVersion, actualResponse.ApiVersion, "API Version not as expected")
+	assert.Equal(t, http.StatusAccepted, recorder.Result().StatusCode, "HTTP status code not as expected")
+	assert.Empty(t, actualResponse.Message, "Message should be empty when it is successful")
 }
 
 func TestAllEvents(t *testing.T) {
@@ -602,6 +563,131 @@ func TestAllEventsByDeviceName(t *testing.T) {
 			// Act
 			recorder := httptest.NewRecorder()
 			handler := http.HandlerFunc(ec.EventsByDeviceName)
+			handler.ServeHTTP(recorder, req)
+
+			// Assert
+			if testCase.errorExpected {
+				var res common.BaseResponse
+				err = json.Unmarshal(recorder.Body.Bytes(), &res)
+				require.NoError(t, err)
+				assert.Equal(t, v2.ApiVersion, res.ApiVersion, "API Version not as expected")
+				assert.Equal(t, testCase.expectedStatusCode, recorder.Result().StatusCode, "HTTP status code not as expected")
+				assert.Equal(t, testCase.expectedStatusCode, int(res.StatusCode), "Response status code not as expected")
+				assert.NotEmpty(t, res.Message, "Response message doesn't contain the error message")
+			} else {
+				var res responseDTO.MultiEventsResponse
+				err = json.Unmarshal(recorder.Body.Bytes(), &res)
+				require.NoError(t, err)
+				assert.Equal(t, v2.ApiVersion, res.ApiVersion, "API Version not as expected")
+				assert.Equal(t, testCase.expectedStatusCode, recorder.Result().StatusCode, "HTTP status code not as expected")
+				assert.Equal(t, testCase.expectedStatusCode, int(res.StatusCode), "Response status code not as expected")
+				assert.Equal(t, testCase.expectedCount, len(res.Events), "Device count not as expected")
+				assert.Empty(t, res.Message, "Message should be empty when it is successful")
+			}
+		})
+	}
+}
+
+func TestAllEventsByTimeRange(t *testing.T) {
+	dic := mocks.NewMockDIC()
+	dbClientMock := &dbMock.DBClient{}
+	dbClientMock.On("EventsByTimeRange", 0, 100, 0, 10).Return([]models.Event{}, nil)
+	dic.Update(di.ServiceConstructorMap{
+		v2DataContainer.DBClientInterfaceName: func(get di.Get) interface{} {
+			return dbClientMock
+		},
+	})
+	ec := NewEventController(dic)
+	assert.NotNil(t, ec)
+
+	tests := []struct {
+		name               string
+		start              string
+		end                string
+		offset             string
+		limit              string
+		errorExpected      bool
+		expectedCount      int
+		expectedStatusCode int
+	}{
+		{"Valid - with proper start/end/offset/limit", "0", "100", "0", "10", false, 0, http.StatusOK},
+		{"Invalid - invalid start format", "aaa", "100", "0", "10", true, 0, http.StatusBadRequest},
+		{"Invalid - invalid end format", "0", "bbb", "0", "10", true, 0, http.StatusBadRequest},
+		{"Invalid - empty start", "", "100", "0", "10", true, 0, http.StatusBadRequest},
+		{"Invalid - empty end", "0", "", "0", "10", true, 0, http.StatusBadRequest},
+		{"Invalid - end before start", "10", "0", "0", "10", true, 0, http.StatusBadRequest},
+		{"Invalid - invalid offset format", "0", "100", "aaa", "10", true, 0, http.StatusBadRequest},
+		{"Invalid - invalid limit format", "0", "100", "0", "aaa", true, 0, http.StatusBadRequest},
+	}
+	for _, testCase := range tests {
+		t.Run(testCase.name, func(t *testing.T) {
+			req, err := http.NewRequest(http.MethodGet, v2.ApiEventByTimeRangeRoute, http.NoBody)
+			query := req.URL.Query()
+			query.Add(v2.Offset, testCase.offset)
+			query.Add(v2.Limit, testCase.limit)
+			req.URL.RawQuery = query.Encode()
+			req = mux.SetURLVars(req, map[string]string{v2.Start: testCase.start, v2.End: testCase.end})
+			require.NoError(t, err)
+
+			// Act
+			recorder := httptest.NewRecorder()
+			handler := http.HandlerFunc(ec.EventsByTimeRange)
+			handler.ServeHTTP(recorder, req)
+
+			// Assert
+			if testCase.errorExpected {
+				var res common.BaseResponse
+				err = json.Unmarshal(recorder.Body.Bytes(), &res)
+				require.NoError(t, err)
+				assert.Equal(t, v2.ApiVersion, res.ApiVersion, "API Version not as expected")
+				assert.Equal(t, testCase.expectedStatusCode, recorder.Result().StatusCode, "HTTP status code not as expected")
+				assert.Equal(t, testCase.expectedStatusCode, int(res.StatusCode), "Response status code not as expected")
+				assert.NotEmpty(t, res.Message, "Response message doesn't contain the error message")
+			} else {
+				var res responseDTO.MultiEventsResponse
+				err = json.Unmarshal(recorder.Body.Bytes(), &res)
+				require.NoError(t, err)
+				assert.Equal(t, v2.ApiVersion, res.ApiVersion, "API Version not as expected")
+				assert.Equal(t, testCase.expectedStatusCode, recorder.Result().StatusCode, "HTTP status code not as expected")
+				assert.Equal(t, testCase.expectedStatusCode, int(res.StatusCode), "Response status code not as expected")
+				assert.Equal(t, testCase.expectedCount, len(res.Events), "Device count not as expected")
+				assert.Empty(t, res.Message, "Message should be empty when it is successful")
+			}
+		})
+	}
+}
+
+func TestDeleteEventsByAge(t *testing.T) {
+	dic := mocks.NewMockDIC()
+	dbClientMock := &dbMock.DBClient{}
+	dbClientMock.On("DeleteEventsByAge", int64(0)).Return(nil)
+	dic.Update(di.ServiceConstructorMap{
+		v2DataContainer.DBClientInterfaceName: func(get di.Get) interface{} {
+			return dbClientMock
+		},
+	})
+	ec := NewEventController(dic)
+	assert.NotNil(t, ec)
+
+	tests := []struct {
+		name               string
+		age                string
+		errorExpected      bool
+		expectedCount      int
+		expectedStatusCode int
+	}{
+		{"Valid - age with proper format", "0", false, 0, http.StatusAccepted},
+		{"Invalid - age with unparsable format", "aaa", true, 0, http.StatusBadRequest},
+	}
+	for _, testCase := range tests {
+		t.Run(testCase.name, func(t *testing.T) {
+			req, err := http.NewRequest(http.MethodGet, v2.ApiEventByTimeRangeRoute, http.NoBody)
+			req = mux.SetURLVars(req, map[string]string{v2.Age: testCase.age})
+			require.NoError(t, err)
+
+			// Act
+			recorder := httptest.NewRecorder()
+			handler := http.HandlerFunc(ec.DeleteEventsByAge)
 			handler.ServeHTTP(recorder, req)
 
 			// Assert

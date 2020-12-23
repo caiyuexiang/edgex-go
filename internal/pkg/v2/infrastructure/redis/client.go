@@ -241,12 +241,48 @@ func (c *Client) AllDeviceProfiles(offset int, limit int, labels []string) ([]mo
 	return deviceProfiles, nil
 }
 
+// DeviceProfilesByModel query device profiles with offset, limit and model
+func (c *Client) DeviceProfilesByModel(offset int, limit int, model string) ([]model.DeviceProfile, errors.EdgeX) {
+	conn := c.Pool.Get()
+	defer conn.Close()
+
+	deviceProfiles, edgeXerr := deviceProfilesByModel(conn, offset, limit, model)
+	if edgeXerr != nil {
+		return deviceProfiles, errors.NewCommonEdgeXWrapper(edgeXerr)
+	}
+	return deviceProfiles, nil
+}
+
+// DeviceProfilesByManufacturer query device profiles with offset, limit and manufacturer
+func (c *Client) DeviceProfilesByManufacturer(offset int, limit int, manufacturer string) ([]model.DeviceProfile, errors.EdgeX) {
+	conn := c.Pool.Get()
+	defer conn.Close()
+
+	deviceProfiles, edgeXerr := deviceProfilesByManufacturer(conn, offset, limit, manufacturer)
+	if edgeXerr != nil {
+		return deviceProfiles, errors.NewCommonEdgeXWrapper(edgeXerr)
+	}
+	return deviceProfiles, nil
+}
+
+// DeviceProfilesByManufacturerAndModel query device profiles with offset, limit, manufacturer and model
+func (c *Client) DeviceProfilesByManufacturerAndModel(offset int, limit int, manufacturer string, model string) ([]model.DeviceProfile, errors.EdgeX) {
+	conn := c.Pool.Get()
+	defer conn.Close()
+
+	deviceProfiles, edgeXerr := deviceProfilesByManufacturerAndModel(conn, offset, limit, manufacturer, model)
+	if edgeXerr != nil {
+		return deviceProfiles, errors.NewCommonEdgeXWrapper(edgeXerr)
+	}
+	return deviceProfiles, nil
+}
+
 // EventTotalCount returns the total count of Event from the database
 func (c *Client) EventTotalCount() (uint32, errors.EdgeX) {
 	conn := c.Pool.Get()
 	defer conn.Close()
 
-	count, edgeXerr := c.eventTotalCount(conn)
+	count, edgeXerr := getMemberNumber(conn, ZCARD, EventsCollection)
 	if edgeXerr != nil {
 		return 0, errors.NewCommonEdgeXWrapper(edgeXerr)
 	}
@@ -259,7 +295,7 @@ func (c *Client) EventCountByDevice(deviceName string) (uint32, errors.EdgeX) {
 	conn := c.Pool.Get()
 	defer conn.Close()
 
-	count, edgeXerr := c.eventCountByDevice(deviceName, conn)
+	count, edgeXerr := getMemberNumber(conn, ZCARD, CreateKey(EventsCollectionDeviceName, deviceName))
 	if edgeXerr != nil {
 		return 0, errors.NewCommonEdgeXWrapper(edgeXerr)
 	}
@@ -292,14 +328,6 @@ func (c *Client) AddDevice(d model.Device) (model.Device, errors.EdgeX) {
 	}
 
 	return addDevice(conn, d)
-}
-
-// Update the pushed timestamp of an event
-func (c *Client) UpdateEventPushedById(id string) errors.EdgeX {
-	conn := c.Pool.Get()
-	defer conn.Close()
-
-	return updateEventPushedById(conn, id)
 }
 
 // DeleteDeviceById deletes a device by id
@@ -389,6 +417,19 @@ func (c *Client) DeviceByName(name string) (device model.Device, edgeXerr errors
 	return
 }
 
+// DevicesByProfileName query devices by offset, limit and profile name
+func (c *Client) DevicesByProfileName(offset int, limit int, profileName string) (devices []model.Device, edgeXerr errors.EdgeX) {
+	conn := c.Pool.Get()
+	defer conn.Close()
+
+	devices, edgeXerr = devicesByProfileName(conn, offset, limit, profileName)
+	if edgeXerr != nil {
+		return devices, errors.NewCommonEdgeX(errors.Kind(edgeXerr),
+			fmt.Sprintf("fail to query devices by offset %d, limit %d and name %s", offset, limit, profileName), edgeXerr)
+	}
+	return devices, nil
+}
+
 // AllEvents query events by offset and limit
 func (c *Client) AllEvents(offset int, limit int) ([]model.Event, errors.EdgeX) {
 	conn := c.Pool.Get()
@@ -425,4 +466,56 @@ func (c *Client) EventsByDeviceName(offset int, limit int, name string) (events 
 			fmt.Sprintf("fail to query events by offset %d, limit %d and name %s", offset, limit, name), edgeXerr)
 	}
 	return events, nil
+}
+
+// EventsByTimeRange query events by time range, offset, and limit
+func (c *Client) EventsByTimeRange(start int, end int, offset int, limit int) (events []model.Event, edgeXerr errors.EdgeX) {
+	conn := c.Pool.Get()
+	defer conn.Close()
+
+	events, edgeXerr = eventsByTimeRange(conn, start, end, offset, limit)
+	if edgeXerr != nil {
+		return events, errors.NewCommonEdgeX(errors.Kind(edgeXerr),
+			fmt.Sprintf("fail to query events by time range %v ~ %v, offset %d, and limit %d", start, end, offset, limit), edgeXerr)
+	}
+	return events, nil
+}
+
+// ReadingTotalCount returns the total count of Event from the database
+func (c *Client) ReadingTotalCount() (uint32, errors.EdgeX) {
+	conn := c.Pool.Get()
+	defer conn.Close()
+
+	count, edgeXerr := getMemberNumber(conn, ZCARD, ReadingsCollection)
+	if edgeXerr != nil {
+		return 0, errors.NewCommonEdgeXWrapper(edgeXerr)
+	}
+
+	return count, nil
+}
+
+// AllReadings query events by offset, limit, and labels
+func (c *Client) AllReadings(offset int, limit int) ([]model.Reading, errors.EdgeX) {
+	conn := c.Pool.Get()
+	defer conn.Close()
+
+	readings, edgeXerr := allReadings(conn, offset, limit)
+	if edgeXerr != nil {
+		return readings, errors.NewCommonEdgeX(errors.Kind(edgeXerr),
+			fmt.Sprintf("fail to query readings by offset %d, and limit %d", offset, limit), edgeXerr)
+	}
+	return readings, nil
+}
+
+// ReadingsByDeviceName query readings by offset, limit and device name
+func (c *Client) ReadingsByDeviceName(offset int, limit int, name string) (readings []model.Reading, edgeXerr errors.EdgeX) {
+	conn := c.Pool.Get()
+	defer conn.Close()
+
+	readings, edgeXerr = readingsByDeviceName(conn, offset, limit, name)
+	if edgeXerr != nil {
+		return readings, errors.NewCommonEdgeX(errors.Kind(edgeXerr),
+			fmt.Sprintf("fail to query readings by offset %d, limit %d and name %s", offset, limit, name), edgeXerr)
+	}
+	return readings, nil
 }

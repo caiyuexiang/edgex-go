@@ -71,9 +71,6 @@ layout:
 grade: stable
 confinement: strict
 
-# This applies to all apps
-environment:
-  SecretStore_RootCaCertPath: $SNAP_DATA/secrets/ca/ca.pem
 apps:
   # edgex microservices
   consul:
@@ -106,7 +103,6 @@ apps:
     adapter: full
     after:
       - postgres
-      - security-secrets-setup
     command: bin/kong-daemon.sh
     command-chain:
       - bin/perl5lib-launch.sh
@@ -127,25 +123,13 @@ apps:
       - network
       - network-bind
     stop-command: bin/kong-stop.sh
-  security-secrets-setup:
-    adapter: full
-    command: bin/security-secrets-setup -confdir $SNAP_DATA/config/security-secrets-setup/res generate
-    daemon: oneshot
-    environment:
-      SecretsSetup_DeployDir: $SNAP_DATA/secrets/
-      SecretsSetup_CertConfigDir: $SNAP_DATA/config/security-secrets-setup/res
-      XDG_RUNTIME_DIR: /tmp
-    start-timeout: 15m
   vault:
     adapter: none
-    after:
-      - consul
-      - security-secrets-setup
     command: bin/vault server --config $VAULT_CONFIG
     daemon: simple
     environment:
       VAULT_CONFIG: "$SNAP_DATA/config/security-secret-store/vault-config.hcl"
-      VAULT_ADDR: "https://localhost:8200"
+      VAULT_ADDR: "http://localhost:8200"
     plugs:
       - network
       - network-bind
@@ -154,7 +138,7 @@ apps:
     command: bin/vault
     environment:
       VAULT_CONFIG: "$SNAP_DATA/config/security-secret-store/vault-config.hcl"
-      VAULT_ADDR: "https://localhost:8200"
+      VAULT_ADDR: "http://localhost:8200"
     plugs:
       - network
       - network-bind
@@ -167,11 +151,8 @@ apps:
     environment:
       VAULT_INTERVAL: "--vaultInterval=10"
       SecretService_Server: localhost
-      SecretService_ServerName: localhost
-      SecretService_CaFilePath: $SNAP_DATA/secrets/ca/ca.pem
-      SecretService_CertFilePath: $SNAP_DATA/secrets/edgex-kong/server.crt
-      SecretService_KeyFilePath: $SNAP_DATA/secrets/edgex-kong/server.key
-      SecretService_TokenFolderPath: $SNAP_DATA/config/security-secrets-setup/res
+      # environment vars for security-secretstore-setup (aka vault-worker)
+      SecretService_TokenFolderPath: $SNAP_DATA/config/security-secretstore-setup/res
       SecretService_TokenProvider: $SNAP/bin/security-file-token-provider
       SecretService_TokenProviderArgs: "-confdir, $SNAP_DATA/config/security-file-token-provider/res"
       SecretService_TokenProviderAdminTokenPath: $SNAP_DATA/secrets/tokenprovider/secrets-token.json
@@ -192,7 +173,6 @@ apps:
     environment:
       INIT_ARG: "--init=true"
       SecretService_TokenPath: $SNAP_DATA/secrets/edgex-security-proxy-setup/secrets-token.json
-      SecretService_CACertPath: $SNAP_DATA/secrets/ca/ca.pem
     daemon: oneshot
     start-timeout: 15m
     plugs: [network]
@@ -209,7 +189,6 @@ apps:
       # TODO: determine the correct cmd-line args & env var overrides...
       SecretStore_ServerName: localhost
       SecretStore_TokenFile: $SNAP_DATA/secrets/edgex-security-bootstrap-redis/secrets-token.json
-      SecretStore_RooCaCertPath: $SNAP_DATA/secrets/ca/ca.pem
     daemon: oneshot
     plugs: [network]
   core-data:
@@ -324,7 +303,11 @@ apps:
     command: bin/security-proxy-setup
     environment:
       SecretService_TokenPath: $SNAP_DATA/secrets/edgex-security-proxy-setup/secrets-token.json
-      SecretService_CACertPath: $SNAP_DATA/secrets/ca/ca.pem
+    plugs: [home, removable-media, network]
+  secrets-config:
+    adapter: none
+    # not a mistake--secrets-config re-uses security-proxy-setup's configuration.toml
+    command: bin/secrets-config -confdir $SNAP_DATA/config/security-proxy-setup/res
     plugs: [home, removable-media, network]
   redis-cli:
     adapter: full
@@ -609,30 +592,34 @@ parts:
 
       # copy service binaries, configuration, and license files into the snap install
       for service in core-command core-data core-metadata support-notifications support-scheduler sys-mgmt-agent \
-          security-proxy-setup security-secrets-setup security-secretstore-setup security-file-token-provider security-bootstrap-redis; do
+          security-proxy-setup security-secretstore-setup security-file-token-provider \
+          security-bootstrap-redis secrets-config; do
 
           install -DT "./cmd/$service/$service" "$SNAPCRAFT_PART_INSTALL/bin/$service"
 
-          if [ "$service" != "security-file-token-provider" ]; then
-              install -DT "./cmd/$service/res/configuration.toml" "$SNAPCRAFT_PART_INSTALL/config/$service/res/configuration.toml"
-          else
+          case "$service" in
+          "security-file-token-provider")
               install -DT "./cmd/security-secretstore-setup/res-file-token-provider/configuration.toml" \
                   "$SNAPCRAFT_PART_INSTALL/config/security-file-token-provider/res/configuration.toml"
-          fi
+          ;;
+          # The security-secrets-config doesn't have a default configuration.toml, but since it shares
+          # the same config as proxy-setup, just use that one.
+          "secrets-config")
+              install -DT "./cmd/security-proxy-setup/res/configuration.toml" \
+                  "$SNAPCRAFT_PART_INSTALL/config/secrets-config/res/configuration.toml"
+          ;;
+          *)
+              install -DT "./cmd/$service/res/configuration.toml" "$SNAPCRAFT_PART_INSTALL/config/$service/res/configuration.toml"
+          esac
 
           install -DT "./cmd/$service/Attribution.txt" "$SNAPCRAFT_PART_INSTALL/usr/share/doc/github.com/edgexfoundry/$service/Attribution.txt"
           install -DT "./LICENSE" "$SNAPCRAFT_PART_INSTALL/usr/share/doc/github.com/edgexfoundry/$service/LICENSE"
       done
 
-      # install the json config files for security-secrets-setup (for kong
-      # and vault PKI) and security-file-token-provider
+      # install the json config files for security-file-token-provider
       #
       # note that the file contents are processed using the real
       # value of $SNAP_DATA using jq in the install hook
-      cp "./cmd/security-secrets-setup/res/pkisetup-vault.json" \
-        "$SNAPCRAFT_PART_INSTALL/config/security-secrets-setup/res/pkisetup-vault.json"
-      cp "./cmd/security-secrets-setup/res/pkisetup-kong.json" \
-        "$SNAPCRAFT_PART_INSTALL/config/security-secrets-setup/res/pkisetup-kong.json"
       cp "./cmd/security-file-token-provider/res/token-config.json" \
         "$SNAPCRAFT_PART_INSTALL/config/security-file-token-provider/res/token-config.json"
 
@@ -675,6 +662,15 @@ parts:
 
       mkdir -p $SNAPCRAFT_PART_INSTALL/config/security-proxy-setup
       cp $SNAPCRAFT_PART_INSTALL/etc/kong/kong.conf.default $SNAPCRAFT_PART_INSTALL/config/security-proxy-setup/kong.conf
+
+      # by default the Kong deb contains an absolute symlink @ /usr/local/openresty/bin/openresty which points to /usr/local/openresty/nginx/sbin/nginx
+      # because the review-tools for the snap store do not currently allow using absolute symlinks that point outside of the snap
+      # (and are not smart enough to realize there is a layout involved in our usage here), we delete the absolute symlink
+      # and re-create it as a relative symlink pointing to ../nginx/sbin/nginx instead
+      cd $SNAPCRAFT_PART_INSTALL/usr/local/openresty/bin
+      rm openresty
+      ln -s ../nginx/sbin/nginx openresty
+
     prime:
        - -lib/systemd/*
        - -usr/share/man/*

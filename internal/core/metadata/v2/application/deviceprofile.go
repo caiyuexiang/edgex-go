@@ -118,3 +118,57 @@ func AllDeviceProfiles(offset int, limit int, labels []string, dic *di.Container
 	}
 	return deviceProfiles, nil
 }
+
+// DeviceProfilesByModel query the device profiles with offset, limit and model
+func DeviceProfilesByModel(offset int, limit int, model string, dic *di.Container) (deviceProfiles []dtos.DeviceProfile, err errors.EdgeX) {
+	if model == "" {
+		return deviceProfiles, errors.NewCommonEdgeX(errors.KindContractInvalid, "model is empty", nil)
+	}
+	dbClient := v2MetadataContainer.DBClientFrom(dic.Get)
+	dps, err := dbClient.DeviceProfilesByModel(offset, limit, model)
+	if err != nil {
+		return deviceProfiles, errors.NewCommonEdgeXWrapper(err)
+	}
+	deviceProfiles = make([]dtos.DeviceProfile, len(dps))
+	for i, dp := range dps {
+		deviceProfiles[i] = dtos.FromDeviceProfileModelToDTO(dp)
+	}
+	return deviceProfiles, nil
+}
+
+// DeviceProfilesByManufacturer query the device profiles with offset, limit and manufacturer
+func DeviceProfilesByManufacturer(offset int, limit int, manufacturer string, dic *di.Container) (deviceProfiles []dtos.DeviceProfile, err errors.EdgeX) {
+	if manufacturer == "" {
+		return deviceProfiles, errors.NewCommonEdgeX(errors.KindContractInvalid, "manufacturer is empty", nil)
+	}
+	dbClient := v2MetadataContainer.DBClientFrom(dic.Get)
+	dps, err := dbClient.DeviceProfilesByManufacturer(offset, limit, manufacturer)
+	if err != nil {
+		return deviceProfiles, errors.NewCommonEdgeXWrapper(err)
+	}
+	deviceProfiles = make([]dtos.DeviceProfile, len(dps))
+	for i, dp := range dps {
+		deviceProfiles[i] = dtos.FromDeviceProfileModelToDTO(dp)
+	}
+	return deviceProfiles, nil
+}
+
+// DeviceProfilesByManufacturerAndModel query the device profiles with offset, limit, manufacturer and model
+func DeviceProfilesByManufacturerAndModel(offset int, limit int, manufacturer string, model string, dic *di.Container) (deviceProfiles []dtos.DeviceProfile, err errors.EdgeX) {
+	if manufacturer == "" {
+		return deviceProfiles, errors.NewCommonEdgeX(errors.KindContractInvalid, "manufacturer is empty", nil)
+	}
+	if model == "" {
+		return deviceProfiles, errors.NewCommonEdgeX(errors.KindContractInvalid, "model is empty", nil)
+	}
+	dbClient := v2MetadataContainer.DBClientFrom(dic.Get)
+	dps, err := dbClient.DeviceProfilesByManufacturerAndModel(offset, limit, manufacturer, model)
+	if err != nil {
+		return deviceProfiles, errors.NewCommonEdgeXWrapper(err)
+	}
+	deviceProfiles = make([]dtos.DeviceProfile, len(dps))
+	for i, dp := range dps {
+		deviceProfiles[i] = dtos.FromDeviceProfileModelToDTO(dp)
+	}
+	return deviceProfiles, nil
+}

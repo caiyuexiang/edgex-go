@@ -398,6 +398,81 @@ func (_m *DBClient) DeviceProfileNameExists(name string) (bool, errors.EdgeX) {
 	return r0, r1
 }
 
+// DeviceProfilesByManufacturer provides a mock function with given fields: offset, limit, manufacturer
+func (_m *DBClient) DeviceProfilesByManufacturer(offset int, limit int, manufacturer string) ([]models.DeviceProfile, errors.EdgeX) {
+	ret := _m.Called(offset, limit, manufacturer)
+
+	var r0 []models.DeviceProfile
+	if rf, ok := ret.Get(0).(func(int, int, string) []models.DeviceProfile); ok {
+		r0 = rf(offset, limit, manufacturer)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]models.DeviceProfile)
+		}
+	}
+
+	var r1 errors.EdgeX
+	if rf, ok := ret.Get(1).(func(int, int, string) errors.EdgeX); ok {
+		r1 = rf(offset, limit, manufacturer)
+	} else {
+		if ret.Get(1) != nil {
+			r1 = ret.Get(1).(errors.EdgeX)
+		}
+	}
+
+	return r0, r1
+}
+
+// DeviceProfilesByManufacturerAndModel provides a mock function with given fields: offset, limit, manufacturer, model
+func (_m *DBClient) DeviceProfilesByManufacturerAndModel(offset int, limit int, manufacturer string, model string) ([]models.DeviceProfile, errors.EdgeX) {
+	ret := _m.Called(offset, limit, manufacturer, model)
+
+	var r0 []models.DeviceProfile
+	if rf, ok := ret.Get(0).(func(int, int, string, string) []models.DeviceProfile); ok {
+		r0 = rf(offset, limit, manufacturer, model)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]models.DeviceProfile)
+		}
+	}
+
+	var r1 errors.EdgeX
+	if rf, ok := ret.Get(1).(func(int, int, string, string) errors.EdgeX); ok {
+		r1 = rf(offset, limit, manufacturer, model)
+	} else {
+		if ret.Get(1) != nil {
+			r1 = ret.Get(1).(errors.EdgeX)
+		}
+	}
+
+	return r0, r1
+}
+
+// DeviceProfilesByModel provides a mock function with given fields: offset, limit, model
+func (_m *DBClient) DeviceProfilesByModel(offset int, limit int, model string) ([]models.DeviceProfile, errors.EdgeX) {
+	ret := _m.Called(offset, limit, model)
+
+	var r0 []models.DeviceProfile
+	if rf, ok := ret.Get(0).(func(int, int, string) []models.DeviceProfile); ok {
+		r0 = rf(offset, limit, model)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]models.DeviceProfile)
+		}
+	}
+
+	var r1 errors.EdgeX
+	if rf, ok := ret.Get(1).(func(int, int, string) errors.EdgeX); ok {
+		r1 = rf(offset, limit, model)
+	} else {
+		if ret.Get(1) != nil {
+			r1 = ret.Get(1).(errors.EdgeX)
+		}
+	}
+
+	return r0, r1
+}
+
 // DeviceServiceById provides a mock function with given fields: id
 func (_m *DBClient) DeviceServiceById(id string) (models.DeviceService, errors.EdgeX) {
 	ret := _m.Called(id)
@@ -458,6 +533,31 @@ func (_m *DBClient) DeviceServiceNameExists(name string) (bool, errors.EdgeX) {
 	var r1 errors.EdgeX
 	if rf, ok := ret.Get(1).(func(string) errors.EdgeX); ok {
 		r1 = rf(name)
+	} else {
+		if ret.Get(1) != nil {
+			r1 = ret.Get(1).(errors.EdgeX)
+		}
+	}
+
+	return r0, r1
+}
+
+// DevicesByProfileName provides a mock function with given fields: offset, limit, profileName
+func (_m *DBClient) DevicesByProfileName(offset int, limit int, profileName string) ([]models.Device, errors.EdgeX) {
+	ret := _m.Called(offset, limit, profileName)
+
+	var r0 []models.Device
+	if rf, ok := ret.Get(0).(func(int, int, string) []models.Device); ok {
+		r0 = rf(offset, limit, profileName)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]models.Device)
+		}
+	}
+
+	var r1 errors.EdgeX
+	if rf, ok := ret.Get(1).(func(int, int, string) errors.EdgeX); ok {
+		r1 = rf(offset, limit, profileName)
 	} else {
 		if ret.Get(1) != nil {
 			r1 = ret.Get(1).(errors.EdgeX)

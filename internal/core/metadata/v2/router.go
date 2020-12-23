@@ -32,6 +32,9 @@ func LoadRestRoutes(r *mux.Router, dic *di.Container) {
 	r.HandleFunc(v2Constant.ApiDeviceProfileByIdRoute, dc.DeleteDeviceProfileById).Methods(http.MethodDelete)
 	r.HandleFunc(v2Constant.ApiDeviceProfileByNameRoute, dc.DeleteDeviceProfileByName).Methods(http.MethodDelete)
 	r.HandleFunc(v2Constant.ApiAllDeviceProfileRoute, dc.AllDeviceProfiles).Methods(http.MethodGet)
+	r.HandleFunc(v2Constant.ApiDeviceProfileByModelRoute, dc.DeviceProfilesByModel).Methods(http.MethodGet)
+	r.HandleFunc(v2Constant.ApiDeviceProfileByManufacturerRoute, dc.DeviceProfilesByManufacturer).Methods(http.MethodGet)
+	r.HandleFunc(v2Constant.ApiDeviceProfileByManufacturerAndModelRoute, dc.DeviceProfilesByManufacturerAndModel).Methods(http.MethodGet)
 
 	// Device Service
 	ds := metadataController.NewDeviceServiceController(dic)
@@ -53,6 +56,7 @@ func LoadRestRoutes(r *mux.Router, dic *di.Container) {
 	r.HandleFunc(v2Constant.ApiDeviceRoute, d.PatchDevice).Methods(http.MethodPatch)
 	r.HandleFunc(v2Constant.ApiAllDeviceRoute, d.AllDevices).Methods(http.MethodGet)
 	r.HandleFunc(v2Constant.ApiDeviceByNameRoute, d.DeviceByName).Methods(http.MethodGet)
+	r.HandleFunc(v2Constant.ApiDeviceByProfileNameRoute, d.DevicesByProfileName).Methods(http.MethodGet)
 
 	r.Use(correlation.ManageHeader)
 	r.Use(correlation.OnResponseComplete)

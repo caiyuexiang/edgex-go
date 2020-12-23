@@ -3,6 +3,7 @@ package http
 import (
 	"math"
 	"net/http"
+	"strconv"
 
 	dataContainer "github.com/edgexfoundry/edgex-go/internal/core/data/container"
 	"github.com/edgexfoundry/edgex-go/internal/core/data/v2/application"
@@ -166,7 +167,7 @@ func (ec *EventController) EventTotalCount(w http.ResponseWriter, r *http.Reques
 	ctx := r.Context()
 	correlationId := correlation.FromContext(ctx)
 
-	var eventResponse interface{}
+	var countResponse interface{}
 	var statusCode int
 
 	// Count the event
@@ -174,15 +175,15 @@ func (ec *EventController) EventTotalCount(w http.ResponseWriter, r *http.Reques
 	if err != nil {
 		lc.Error(err.Error(), clients.CorrelationHeader, correlationId)
 		lc.Debug(err.DebugMessages(), clients.CorrelationHeader, correlationId)
-		eventResponse = commonDTO.NewBaseResponse("", err.Message(), err.Code())
+		countResponse = commonDTO.NewBaseResponse("", err.Message(), err.Code())
 		statusCode = err.Code()
 	} else {
-		eventResponse = responseDTO.NewEventCountResponse("", "", http.StatusOK, count, "")
+		countResponse = commonDTO.NewCountResponse("", "", http.StatusOK, count)
 		statusCode = http.StatusOK
 	}
 
 	utils.WriteHttpHeader(w, ctx, statusCode)
-	pkg.Encode(eventResponse, w, lc) // encode and send out the response
+	pkg.Encode(countResponse, w, lc) // encode and send out the response
 }
 
 func (ec *EventController) EventCountByDevice(w http.ResponseWriter, r *http.Request) {
@@ -194,9 +195,9 @@ func (ec *EventController) EventCountByDevice(w http.ResponseWriter, r *http.Req
 
 	// URL parameters
 	vars := mux.Vars(r)
-	deviceName := vars[v2.DeviceName]
+	deviceName := vars[v2.Name]
 
-	var eventResponse interface{}
+	var countResponse interface{}
 	var statusCode int
 
 	// Count the event by device
@@ -204,55 +205,15 @@ func (ec *EventController) EventCountByDevice(w http.ResponseWriter, r *http.Req
 	if err != nil {
 		lc.Error(err.Error(), clients.CorrelationHeader, correlationId)
 		lc.Debug(err.DebugMessages(), clients.CorrelationHeader, correlationId)
-		eventResponse = commonDTO.NewBaseResponse("", err.Message(), err.Code())
+		countResponse = commonDTO.NewBaseResponse("", err.Message(), err.Code())
 		statusCode = err.Code()
 	} else {
-		eventResponse = responseDTO.NewEventCountResponse("", "", http.StatusOK, count, deviceName)
+		countResponse = commonDTO.NewCountResponse("", "", http.StatusOK, count)
 		statusCode = http.StatusOK
 	}
 
 	utils.WriteHttpHeader(w, ctx, statusCode)
-	pkg.Encode(eventResponse, w, lc) // encode and send out the response
-}
-
-func (ec *EventController) UpdateEventPushedById(w http.ResponseWriter, r *http.Request) {
-	// retrieve all the service injections from bootstrap
-	lc := container.LoggingClientFrom(ec.dic.Get)
-
-	ctx := r.Context()
-	correlationId := correlation.FromContext(ctx)
-
-	updateEventPushedReqs, err := ec.reader.ReadUpdateEventPushedByIdRequest(r.Body)
-	if err != nil {
-		lc.Error(err.Error(), clients.CorrelationHeader, correlationId)
-		lc.Debug(err.DebugMessages(), clients.CorrelationHeader, correlationId)
-		errResponses := commonDTO.NewBaseResponse(
-			"",
-			err.Message(),
-			err.Code())
-		utils.WriteHttpHeader(w, ctx, err.Code())
-		// encode and send out the response
-		pkg.Encode(errResponses, w, lc)
-		return
-	}
-
-	var updatedResponses []interface{}
-	for _, req := range updateEventPushedReqs {
-		err := application.UpdateEventPushedById(req.Id, ec.dic)
-		var updateEventPushedResponse interface{}
-		if err != nil {
-			lc.Error(err.Error(), clients.CorrelationHeader, correlationId)
-			lc.Debug(err.DebugMessages(), clients.CorrelationHeader, correlationId)
-			updateEventPushedResponse = responseDTO.NewUpdateEventPushedByIdResponse(req.RequestId, err.Message(), err.Code(), req.Id)
-		} else {
-			updateEventPushedResponse = responseDTO.NewUpdateEventPushedByIdResponse(req.RequestId, "", http.StatusOK, req.Id)
-		}
-		updatedResponses = append(updatedResponses, updateEventPushedResponse)
-	}
-
-	utils.WriteHttpHeader(w, ctx, http.StatusMultiStatus)
-	// encode and send out the response
-	pkg.Encode(updatedResponses, w, lc)
+	pkg.Encode(countResponse, w, lc) // encode and send out the response
 }
 
 func (ec *EventController) AllEvents(w http.ResponseWriter, r *http.Request) {
@@ -265,7 +226,7 @@ func (ec *EventController) AllEvents(w http.ResponseWriter, r *http.Request) {
 	var statusCode int
 
 	// parse URL query string for offset, limit
-	offset, limit, _, err := utils.ParseGetAllObjectsRequestQueryString(r, 0, math.MaxUint32, -1, config.Service.MaxResultCount)
+	offset, limit, _, err := utils.ParseGetAllObjectsRequestQueryString(r, 0, math.MaxInt32, -1, config.Service.MaxResultCount)
 	if err != nil {
 		lc.Error(err.Error(), clients.CorrelationHeader, correlationId)
 		lc.Debug(err.DebugMessages(), clients.CorrelationHeader, correlationId)
@@ -303,7 +264,7 @@ func (ec *EventController) EventsByDeviceName(w http.ResponseWriter, r *http.Req
 	var statusCode int
 
 	// parse URL query string for offset, limit
-	offset, limit, _, err := utils.ParseGetAllObjectsRequestQueryString(r, 0, math.MaxUint32, -1, config.Service.MaxResultCount)
+	offset, limit, _, err := utils.ParseGetAllObjectsRequestQueryString(r, 0, math.MaxInt32, -1, config.Service.MaxResultCount)
 	if err != nil {
 		lc.Error(err.Error(), clients.CorrelationHeader, correlationId)
 		lc.Debug(err.DebugMessages(), clients.CorrelationHeader, correlationId)
@@ -325,5 +286,104 @@ func (ec *EventController) EventsByDeviceName(w http.ResponseWriter, r *http.Req
 	}
 
 	utils.WriteHttpHeader(w, ctx, statusCode)
+	pkg.Encode(response, w, lc)
+}
+
+func (ec *EventController) DeleteEventsByDeviceName(w http.ResponseWriter, r *http.Request) {
+	// retrieve all the service injections from bootstrap
+	lc := container.LoggingClientFrom(ec.dic.Get)
+
+	ctx := r.Context()
+	correlationId := correlation.FromContext(ctx)
+
+	vars := mux.Vars(r)
+	deviceName := vars[v2.Name]
+
+	var response interface{}
+	var statusCode int
+
+	// Delete events with associated Device deviceName
+	err := application.DeleteEventsByDeviceName(deviceName, ec.dic)
+	if err != nil {
+		lc.Debug(err.DebugMessages(), clients.CorrelationHeader, correlationId)
+		response = commonDTO.NewBaseResponse("", err.Message(), err.Code())
+		statusCode = err.Code()
+	} else {
+		response = commonDTO.NewBaseResponse("", "", http.StatusAccepted)
+		statusCode = http.StatusAccepted
+	}
+
+	utils.WriteHttpHeader(w, ctx, statusCode)
+	// encode and send out the response
+	pkg.Encode(response, w, lc)
+}
+
+func (ec *EventController) EventsByTimeRange(w http.ResponseWriter, r *http.Request) {
+	lc := container.LoggingClientFrom(ec.dic.Get)
+	ctx := r.Context()
+	correlationId := correlation.FromContext(ctx)
+	config := dataContainer.ConfigurationFrom(ec.dic.Get)
+
+	var response interface{}
+	var statusCode int
+
+	// parse time range (start, end), offset, and limit from incoming request
+	start, end, offset, limit, err := utils.ParseTimeRangeOffsetLimit(r, 0, math.MaxInt32, -1, config.Service.MaxResultCount)
+	if err != nil {
+		lc.Error(err.Error(), clients.CorrelationHeader, correlationId)
+		lc.Debug(err.DebugMessages(), clients.CorrelationHeader, correlationId)
+		response = commonDTO.NewBaseResponse("", err.Message(), err.Code())
+		statusCode = err.Code()
+	} else {
+		events, err := application.EventsByTimeRange(start, end, offset, limit, ec.dic)
+		if err != nil {
+			if errors.Kind(err) != errors.KindEntityDoesNotExist {
+				lc.Error(err.Error(), clients.CorrelationHeader, correlationId)
+			}
+			lc.Debug(err.DebugMessages(), clients.CorrelationHeader, correlationId)
+			response = commonDTO.NewBaseResponse("", err.Message(), err.Code())
+			statusCode = err.Code()
+		} else {
+			response = responseDTO.NewMultiEventsResponse("", "", http.StatusOK, events)
+			statusCode = http.StatusOK
+		}
+	}
+
+	utils.WriteHttpHeader(w, ctx, statusCode)
+	pkg.Encode(response, w, lc)
+}
+
+func (ec *EventController) DeleteEventsByAge(w http.ResponseWriter, r *http.Request) {
+	// retrieve all the service injections from bootstrap
+	lc := container.LoggingClientFrom(ec.dic.Get)
+
+	ctx := r.Context()
+	correlationId := correlation.FromContext(ctx)
+
+	var response interface{}
+	var statusCode int
+
+	vars := mux.Vars(r)
+	age, parsingErr := strconv.ParseInt(vars[v2.Age], 10, 64)
+
+	if parsingErr != nil {
+		err := errors.NewCommonEdgeX(errors.KindContractInvalid, "age format parsing failed", parsingErr)
+		lc.Error(err.Error(), clients.CorrelationHeader, correlationId)
+		lc.Debug(err.DebugMessages(), clients.CorrelationHeader, correlationId)
+		response = commonDTO.NewBaseResponse("", err.Message(), err.Code())
+		statusCode = err.Code()
+	} else {
+		err := application.DeleteEventsByAge(age, ec.dic)
+		if err != nil {
+			lc.Debug(err.DebugMessages(), clients.CorrelationHeader, correlationId)
+			response = commonDTO.NewBaseResponse("", err.Message(), err.Code())
+			statusCode = err.Code()
+		} else {
+			response = commonDTO.NewBaseResponse("", "", http.StatusAccepted)
+			statusCode = http.StatusAccepted
+		}
+	}
+	utils.WriteHttpHeader(w, ctx, statusCode)
+	// encode and send out the response
 	pkg.Encode(response, w, lc)
 }

@@ -6,9 +6,6 @@ https://github.com/pkg/errors/blob/master/LICENSE
 gorilla/mux (BSD-3) https://github.com/gorilla/mux
 https://github.com/gorilla/mux/blob/master/LICENSE
 
-globalsign/mgo (unspecified) - https://github.com/globalsign/mgo
-https://github.com/globalsign/mgo/blob/master/LICENSE
-
 pebbe/zmq4 (BSD-2) https://github.com/pebbe/zmq4
 https://github.com/pebbe/zmq4/blob/master/LICENSE.txt
 
@@ -156,6 +153,9 @@ https://github.com/golang/net/blob/master/LICENSE
 
 gopkg.in/yaml.v2 (Apache 2.0) https://github.com/go-yaml/yaml/
 https://github.com/go-yaml/yaml/blob/v2.2.2/LICENSE
+
+gopkg.in/yaml.v3 (MIT) https://github.com/go-yaml/yaml/
+https://github.com/go-yaml/yaml/blob/v3/LICENSE
 
 cloudflare/gokey (BSD-3) https://github.com/cloudflare/gokey
 https://github.com/cloudflare/gokey/blob/master/LICENSE

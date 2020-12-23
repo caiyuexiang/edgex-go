@@ -16,19 +16,15 @@
 [Writable]
 LogLevel = 'INFO'
 
-[Logging]
-EnableRemote = false
-File = ''
-
 [SecretStore]
 Host = 'localhost'          ## Override in environment variables, if necessary
-ServerName = 'edgex-vault'  ## Needed for TLS CN
+ServerName = ''
 Port = 8200
-Protocol = 'https'
+Protocol = 'http'
 AdditionalRetryAttempts = 10
 RetryWaitPeriod = '1s'
 Path = '/v1/secret/edgex/bootstrap-redis/'
-RootCaCertPath = '/vault/config/pki/EdgeXFoundryCA/EdgeXFoundryCA.pem'
+RootCaCertPath = ''
 TokenFile = '/vault/config/assets/resp-init.json'
   [SecretStore.Authentication]
   AuthType = 'X-Vault-Token'

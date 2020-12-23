@@ -19,15 +19,16 @@ import (
 )
 
 const (
-	DeviceCollection            = "v2:device"
-	DeviceCollectionName        = DeviceCollection + ":" + v2.Name
-	DeviceCollectionLabel       = DeviceCollection + ":" + v2.Label
-	DeviceCollectionServiceName = DeviceCollection + ":" + v2.Service + ":" + v2.Name
+	DeviceCollection            = "md|dv"
+	DeviceCollectionName        = DeviceCollection + DBKeySeparator + v2.Name
+	DeviceCollectionLabel       = DeviceCollection + DBKeySeparator + v2.Label
+	DeviceCollectionServiceName = DeviceCollection + DBKeySeparator + v2.Service + DBKeySeparator + v2.Name
+	DeviceCollectionProfileName = DeviceCollection + DBKeySeparator + v2.Profile + DBKeySeparator + v2.Name
 )
 
 // deviceStoredKey return the device's stored key which combines the collection name and object id
 func deviceStoredKey(id string) string {
-	return fmt.Sprintf("%s:%s", DeviceCollection, id)
+	return CreateKey(DeviceCollection, id)
 }
 
 // deviceNameExists whether the device exists by name
@@ -80,9 +81,10 @@ func addDevice(conn redis.Conn, d models.Device) (models.Device, errors.EdgeX) {
 	_ = conn.Send(SET, storedKey, dsJSONBytes)
 	_ = conn.Send(ZADD, DeviceCollection, 0, storedKey)
 	_ = conn.Send(HSET, DeviceCollectionName, d.Name, storedKey)
-	_ = conn.Send(ZADD, fmt.Sprintf("%s:%s", DeviceCollectionServiceName, d.ServiceName), d.Modified, storedKey)
+	_ = conn.Send(ZADD, CreateKey(DeviceCollectionServiceName, d.ServiceName), d.Modified, storedKey)
+	_ = conn.Send(ZADD, CreateKey(DeviceCollectionProfileName, d.ProfileName), d.Modified, storedKey)
 	for _, label := range d.Labels {
-		_ = conn.Send(ZADD, fmt.Sprintf("%s:%s", DeviceCollectionLabel, label), d.Modified, storedKey)
+		_ = conn.Send(ZADD, CreateKey(DeviceCollectionLabel, label), d.Modified, storedKey)
 	}
 	_, err = conn.Do(EXEC)
 	if err != nil {
@@ -143,9 +145,10 @@ func deleteDevice(conn redis.Conn, device models.Device) errors.EdgeX {
 	_ = conn.Send(DEL, storedKey)
 	_ = conn.Send(ZREM, DeviceCollection, storedKey)
 	_ = conn.Send(HDEL, DeviceCollectionName, device.Name)
-	_ = conn.Send(ZREM, fmt.Sprintf("%s:%s", DeviceCollectionServiceName, device.ServiceName), storedKey)
+	_ = conn.Send(ZREM, CreateKey(DeviceCollectionServiceName, device.ServiceName), storedKey)
+	_ = conn.Send(ZREM, CreateKey(DeviceCollectionProfileName, device.ProfileName), storedKey)
 	for _, label := range device.Labels {
-		_ = conn.Send(ZREM, fmt.Sprintf("%s:%s", DeviceCollectionLabel, label), storedKey)
+		_ = conn.Send(ZREM, CreateKey(DeviceCollectionLabel, label), storedKey)
 	}
 	_, err := conn.Do(EXEC)
 	if err != nil {
@@ -160,7 +163,7 @@ func devicesByServiceName(conn redis.Conn, offset int, limit int, name string) (
 	if limit == -1 { //-1 limit means that clients want to retrieve all remaining records after offset from DB, so specifying -1 for end
 		end = limit
 	}
-	objects, err := getObjectsByRevRange(conn, fmt.Sprintf("%s:%s", DeviceCollectionServiceName, name), offset, end)
+	objects, err := getObjectsByRevRange(conn, CreateKey(DeviceCollectionServiceName, name), offset, end)
 	if err != nil {
 		return devices, errors.NewCommonEdgeXWrapper(err)
 	}
@@ -196,6 +199,29 @@ func devicesByLabels(conn redis.Conn, offset int, limit int, labels []string) (d
 			return []models.Device{}, errors.NewCommonEdgeX(errors.KindDatabaseError, "device format parsing failed from the database", err)
 		}
 		devices[i] = dp
+	}
+	return devices, nil
+}
+
+// devicesByProfileName query devices by offset, limit and profile name
+func devicesByProfileName(conn redis.Conn, offset int, limit int, profileName string) (devices []models.Device, edgeXerr errors.EdgeX) {
+	end := offset + limit - 1
+	if limit == -1 { //-1 limit means that clients want to retrieve all remaining records after offset from DB, so specifying -1 for end
+		end = limit
+	}
+	objects, err := getObjectsByRevRange(conn, CreateKey(DeviceCollectionProfileName, profileName), offset, end)
+	if err != nil {
+		return devices, errors.NewCommonEdgeXWrapper(err)
+	}
+
+	devices = make([]models.Device, len(objects))
+	for i, in := range objects {
+		s := models.Device{}
+		err := json.Unmarshal(in, &s)
+		if err != nil {
+			return []models.Device{}, errors.NewCommonEdgeX(errors.KindDatabaseError, "device format parsing failed from the database", err)
+		}
+		devices[i] = s
 	}
 	return devices, nil
 }

@@ -23,7 +23,6 @@ type ConfigurationStruct struct {
 	Writable    WritableInfo
 	Clients     map[string]bootstrapConfig.ClientInfo
 	Databases   map[string]bootstrapConfig.Database
-	Logging     bootstrapConfig.LoggingInfo
 	Registry    bootstrapConfig.RegistryInfo
 	Service     bootstrapConfig.ServiceInfo
 	SecretStore bootstrapConfig.SecretStoreInfo
@@ -31,7 +30,8 @@ type ConfigurationStruct struct {
 
 // WritableInfo contains configuration properties that can be updated and applied without restarting the service.
 type WritableInfo struct {
-	LogLevel string
+	LogLevel        string
+	InsecureSecrets bootstrapConfig.InsecureSecrets
 }
 
 // UpdateFromRaw converts configuration received from the registry to a service-specific configuration struct which is
@@ -73,7 +73,6 @@ func (c *ConfigurationStruct) GetBootstrap() bootstrapConfig.BootstrapConfigurat
 		Clients:     c.Clients,
 		Service:     c.Service,
 		Registry:    c.Registry,
-		Logging:     c.Logging,
 		SecretStore: c.SecretStore,
 	}
 }
@@ -91,4 +90,9 @@ func (c *ConfigurationStruct) GetRegistryInfo() bootstrapConfig.RegistryInfo {
 // GetDatabaseInfo returns a database information map.
 func (c *ConfigurationStruct) GetDatabaseInfo() map[string]bootstrapConfig.Database {
 	return c.Databases
+}
+
+// GetInsecureSecrets returns the service's InsecureSecrets.
+func (c *ConfigurationStruct) GetInsecureSecrets() bootstrapConfig.InsecureSecrets {
+	return c.Writable.InsecureSecrets
 }

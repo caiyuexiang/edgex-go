@@ -11,6 +11,7 @@ import (
 
 	"github.com/edgexfoundry/edgex-go/internal/pkg/common"
 	"github.com/edgexfoundry/go-mod-core-contracts/errors"
+	"github.com/edgexfoundry/go-mod-core-contracts/v2"
 
 	"github.com/gomodule/redigo/redis"
 )
@@ -83,15 +84,11 @@ func getObjectsByLabelsAndSomeRange(conn redis.Conn, command string, key string,
 
 	idsSlice := make([][]string, len(labels))
 	for i, label := range labels { //iterate each labels to retrieve Ids associated with labels
-		idsWithLabel, err := redis.Strings(conn.Do(command, fmt.Sprintf("%s:label:%s", key, label), 0, -1))
+		idsWithLabel, err := redis.Strings(conn.Do(command, CreateKey(key, v2.Label, label), 0, -1))
 		if err != nil {
 			return nil, errors.NewCommonEdgeX(errors.KindDatabaseError, fmt.Sprintf("query object ids by label %s from database failed", label), err)
 		}
-		idSlice := make([]string, len(idsWithLabel))
-		for i, v := range idsWithLabel {
-			idSlice[i] = fmt.Sprint(v)
-		}
-		idsSlice[i] = idSlice
+		idsSlice[i] = idsWithLabel
 	}
 
 	//find common Ids among two-dimension Ids slice associated with labels
@@ -99,7 +96,7 @@ func getObjectsByLabelsAndSomeRange(conn redis.Conn, command string, key string,
 	if start > len(commonIds) {
 		return nil, errors.NewCommonEdgeX(errors.KindRangeNotSatisfiable, fmt.Sprintf("query objects bounds out of range. length:%v", len(commonIds)), nil)
 	}
-	if end > len(commonIds) {
+	if end >= len(commonIds) {
 		commonIds = commonIds[start:]
 	} else { // as end index in golang re-slice is exclusive, increment the end index to ensure the end could be inclusive
 		commonIds = commonIds[start : end+1]
@@ -145,4 +142,13 @@ func objectIdExists(conn redis.Conn, id string) (bool, errors.EdgeX) {
 		return false, errors.NewCommonEdgeX(errors.KindDatabaseError, "object Id existence check failed", err)
 	}
 	return exists, nil
+}
+
+func getMemberNumber(conn redis.Conn, command string, key string) (uint32, errors.EdgeX) {
+	count, err := redis.Int(conn.Do(command, key))
+	if err != nil {
+		return 0, errors.NewCommonEdgeX(errors.KindDatabaseError, fmt.Sprintf("failed to get member number with command %s from %s", command, key), err)
+	}
+
+	return uint32(count), nil
 }
