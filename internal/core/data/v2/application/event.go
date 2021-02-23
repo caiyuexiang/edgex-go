@@ -14,36 +14,49 @@ import (
 	dataContainer "github.com/edgexfoundry/edgex-go/internal/core/data/container"
 	v2DataContainer "github.com/edgexfoundry/edgex-go/internal/core/data/v2/bootstrap/container"
 	"github.com/edgexfoundry/edgex-go/internal/pkg/correlation"
-	"github.com/edgexfoundry/go-mod-bootstrap/bootstrap/container"
-	"github.com/edgexfoundry/go-mod-bootstrap/di"
-	"github.com/edgexfoundry/go-mod-core-contracts/clients"
-	"github.com/edgexfoundry/go-mod-core-contracts/errors"
-	"github.com/edgexfoundry/go-mod-core-contracts/v2/dtos"
-	"github.com/edgexfoundry/go-mod-core-contracts/v2/models"
 
-	msgTypes "github.com/edgexfoundry/go-mod-messaging/pkg/types"
+	"github.com/edgexfoundry/go-mod-bootstrap/v2/bootstrap/container"
+	"github.com/edgexfoundry/go-mod-bootstrap/v2/di"
+	"github.com/edgexfoundry/go-mod-core-contracts/v2/clients"
+	"github.com/edgexfoundry/go-mod-core-contracts/v2/errors"
+	"github.com/edgexfoundry/go-mod-core-contracts/v2/v2/dtos"
+	"github.com/edgexfoundry/go-mod-core-contracts/v2/v2/dtos/common"
+	dto "github.com/edgexfoundry/go-mod-core-contracts/v2/v2/dtos/requests"
+	"github.com/edgexfoundry/go-mod-core-contracts/v2/v2/models"
+	msgTypes "github.com/edgexfoundry/go-mod-messaging/v2/pkg/types"
 
 	"github.com/google/uuid"
 )
 
+// ValidateEvent validates if e is a valid event with corresponding device profile name and device name
+// ValidateEvent throws error when profileName or deviceName doesn't match to e
+func ValidateEvent(e models.Event, profileName string, deviceName string, ctx context.Context, dic *di.Container) errors.EdgeX {
+	if e.ProfileName != profileName {
+		return errors.NewCommonEdgeX(errors.KindContractInvalid, fmt.Sprintf("event's profileName %s mismatches %s", e.ProfileName, profileName), nil)
+	}
+	if e.DeviceName != deviceName {
+		return errors.NewCommonEdgeX(errors.KindContractInvalid, fmt.Sprintf("event's deviceName %s mismatches %s", e.DeviceName, deviceName), nil)
+	}
+	return nil
+}
+
 // The AddEvent function accepts the new event model from the controller functions
 // and invokes addEvent function in the infrastructure layer
-func AddEvent(e models.Event, ctx context.Context, dic *di.Container) (id string, err errors.EdgeX) {
+func AddEvent(e models.Event, profileName string, deviceName string, ctx context.Context, dic *di.Container) (err errors.EdgeX) {
 	configuration := dataContainer.ConfigurationFrom(dic.Get)
+	if !configuration.Writable.PersistData {
+		return nil
+	}
+
 	dbClient := v2DataContainer.DBClientFrom(dic.Get)
 	lc := container.LoggingClientFrom(dic.Get)
-
-	err = checkDevice(e.DeviceName, ctx, dic)
-	if err != nil {
-		return "", errors.NewCommonEdgeXWrapper(err)
-	}
 
 	// Add the event and readings to the database
 	if configuration.Writable.PersistData {
 		correlationId := correlation.FromContext(ctx)
 		addedEvent, err := dbClient.AddEvent(e)
 		if err != nil {
-			return "", errors.NewCommonEdgeXWrapper(err)
+			return errors.NewCommonEdgeXWrapper(err)
 		}
 		e = addedEvent
 
@@ -54,42 +67,47 @@ func AddEvent(e models.Event, ctx context.Context, dic *di.Container) (id string
 		))
 	}
 
-	//convert Event model to Event DTO
-	eventDTO := dtos.FromEventModelToDTO(e)
-	putEventOnQueue(eventDTO, ctx, dic) // Push event DTO to message bus for App Services to consume
-
-	return e.Id, nil
+	return nil
 }
 
-// Put event DTO on the message queue to be processed by the rules engine
-func putEventOnQueue(evt dtos.Event, ctx context.Context, dic *di.Container) {
+// PublishEvent publishes incoming AddEventRequest through MessageClient
+func PublishEvent(addEventReq dto.AddEventRequest, profileName string, deviceName string, ctx context.Context, dic *di.Container) {
 	lc := container.LoggingClientFrom(dic.Get)
 	msgClient := dataContainer.MessagingClientFrom(dic.Get)
 	configuration := dataContainer.ConfigurationFrom(dic.Get)
 	correlationId := correlation.FromContext(ctx)
 
-	lc.Debug("Putting V2 API event on message queue", clients.CorrelationHeader, correlationId)
+	lc.Debug("Putting V2 Event DTO on message queue", clients.CorrelationHeader, correlationId)
 
 	var data []byte
 	var err error
-	// Re-marshal JSON content into bytes.
-	if clients.FromContext(ctx, clients.ContentType) == clients.ContentTypeJSON {
-		data, err = json.Marshal(evt)
-		if err != nil {
-			lc.Error(fmt.Sprintf("error marshaling event: %+v", evt), clients.CorrelationHeader, correlationId)
-			return
-		}
+
+	if len(clients.FromContext(ctx, clients.ContentType)) == 0 {
+		ctx = context.WithValue(ctx, clients.ContentType, clients.ContentTypeJSON)
 	}
 
-	msgEnvelope := msgTypes.NewMessageEnvelope(data, ctx)
-	err = msgClient.Publish(msgEnvelope, configuration.MessageQueue.Topic)
+	// Must make sure API Version for embedded DTOs is set since it isn't required by the request,
+	// but is needed when published to Message Bus.
+	addEventReq.Event.Versionable = common.NewVersionable()
+	for index := range addEventReq.Event.Readings {
+		addEventReq.Event.Readings[index].Versionable = common.NewVersionable()
+	}
+
+	data, err = json.Marshal(addEventReq)
 	if err != nil {
-		lc.Error(fmt.Sprintf("Unable to send message for V2 API event. Correlation-id: %s, Device Name: %s, Error: %v",
-			correlationId, evt.DeviceName, err))
+		lc.Error(fmt.Sprintf("error marshaling V2 AddEventRequest DTO: %+v", addEventReq), clients.CorrelationHeader, correlationId)
+		return
+	}
+
+	publishTopic := fmt.Sprintf("%s/%s/%s", configuration.MessageQueue.PublishTopicPrefix, profileName, deviceName)
+	msgEnvelope := msgTypes.NewMessageEnvelope(data, ctx)
+	err = msgClient.Publish(msgEnvelope, publishTopic)
+	if err != nil {
+		lc.Error(fmt.Sprintf("Unable to send message for V2 API event. Correlation-id: %s, Profile Name: %s, "+
+			"Device Name: %s, Error: %v", correlationId, profileName, deviceName, err))
 	} else {
 		lc.Debug(fmt.Sprintf(
-			"Event Published on message queue. Topic: %s, Correlation-id: %s ",
-			configuration.MessageQueue.Topic, correlationId))
+			"V2 API Event Published on message queue. Topic: %s, Correlation-id: %s ", publishTopic, correlationId))
 	}
 }
 
@@ -136,6 +154,7 @@ func DeleteEventById(id string, dic *di.Container) errors.EdgeX {
 	return nil
 }
 
+// EventTotalCount return the count of all of events currently stored in the database and error if any
 func EventTotalCount(dic *di.Container) (uint32, errors.EdgeX) {
 	dbClient := v2DataContainer.DBClientFrom(dic.Get)
 
@@ -147,10 +166,11 @@ func EventTotalCount(dic *di.Container) (uint32, errors.EdgeX) {
 	return count, nil
 }
 
-func EventCountByDevice(deviceName string, dic *di.Container) (uint32, errors.EdgeX) {
+// EventCountByDeviceName return the count of all of events associated with given device and error if any
+func EventCountByDeviceName(deviceName string, dic *di.Container) (uint32, errors.EdgeX) {
 	dbClient := v2DataContainer.DBClientFrom(dic.Get)
 
-	count, err := dbClient.EventCountByDevice(deviceName)
+	count, err := dbClient.EventCountByDeviceName(deviceName)
 	if err != nil {
 		return 0, errors.NewCommonEdgeXWrapper(err)
 	}

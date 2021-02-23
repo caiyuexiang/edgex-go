@@ -1,5 +1,5 @@
 //
-// Copyright (c) 2020 Intel Corporation
+// Copyright (c) 2021 Intel Corporation
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -14,7 +14,7 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/edgexfoundry/go-mod-core-contracts/clients/logger"
+	"github.com/edgexfoundry/go-mod-core-contracts/v2/clients/logger"
 )
 
 type PasswordProvider struct {
@@ -49,7 +49,7 @@ func (p *PasswordProvider) SetConfiguration(passwordProvider string, passwordPro
 	return nil
 }
 
-// Generate retrives the password from the tool
+// Generate retrieves the password from the tool
 func (p *PasswordProvider) Generate(ctx context.Context) (string, error) {
 	var outputBuffer bytes.Buffer
 

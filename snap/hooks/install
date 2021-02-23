@@ -10,10 +10,18 @@ SNAP_CURRENT=${SNAP/%$SNAP_REVISION/current}
 # into $SNAP_DATA/config
 # note that app-service-configurable is handled separately
 mkdir -p "$SNAP_DATA/config"
-for service in security-file-token-provider security-proxy-setup security-secretstore-setup core-command core-data core-metadata support-notifications support-scheduler sys-mgmt-agent device-virtual security-bootstrap-redis; do
+for service in security-file-token-provider security-proxy-setup security-secretstore-setup core-command core-data core-metadata support-notifications support-scheduler sys-mgmt-agent device-virtual security-bootstrapper; do
     if [ ! -f "$SNAP_DATA/config/$service/res/configuration.toml" ]; then
         mkdir -p "$SNAP_DATA/config/$service/res"
-        cp "$SNAP/config/$service/res/configuration.toml" "$SNAP_DATA/config/$service/res/configuration.toml"
+
+        # for security-bootstrapper, we only need the configureRedis subcommand portion and associated 
+        # configuration.toml file
+        if [ "$service" == "security-bootstrapper" ]; then
+            cp "$SNAP/config/$service/res-bootstrap-redis/configuration.toml" \
+                "$SNAP_DATA/config/$service/res/configuration.toml"
+        else
+            cp "$SNAP/config/$service/res/configuration.toml" "$SNAP_DATA/config/$service/res/configuration.toml"
+        fi
 
         # replace $SNAP, $SNAP_DATA, $SNAP_COMMON env vars for file-token-provider,
         # as it doesn't support env var overrides
@@ -75,6 +83,8 @@ done
 
 # create redis data dir
 mkdir -p "$SNAP_DATA/redis"
+# create redis conf dir
+mkdir -p "$SNAP_DATA/redis/conf"
 
 # set redis as the prevdbtype in order to support configure hook switching
 echo "redis" > "$SNAP_DATA/prevdbtype"
@@ -149,7 +159,7 @@ done
 # -n 1   -- generate a single password
 # -x 24  -- maximum password len
 # -m 16  -- minimum password len
-PGPASSWD=`$SNAP/usr/lib/apg/apg -a 0 -M ncl -n 1 -x 24 -m 16`
+PGPASSWD=$("$SNAP/usr/lib/apg/apg" -a 0 -M ncl -n 1 -x 24 -m 16)
 mkdir -p "$SNAP_DATA/config/postgres/"
 echo "$PGPASSWD" > "$SNAP_DATA/config/postgres/kongpw"
 
@@ -159,7 +169,7 @@ echo "$PGPASSWD" > "$SNAP_DATA/config/postgres/kongpw"
 export PGDATABASE="kong"
 iter_num=0
 until "$SNAP/bin/drop-snap-daemon.sh" "$SNAP/bin/perl5lib-launch.sh" "$SNAP/usr/bin/psql" \
-	   "-c CREATE ROLE kong WITH NOSUPERUSER NOCREATEDB NOCREATEROLE INHERIT LOGIN PASSWORD '$PGPASSWD'"; do
+    "-c CREATE ROLE kong WITH NOSUPERUSER NOCREATEDB NOCREATEROLE INHERIT LOGIN PASSWORD '$PGPASSWD'"; do
     sleep 1
     iter_num=$(( iter_num + 1 ))
     if [ $iter_num -gt $MAX_POSTGRES_INIT_ITERATIONS ]; then

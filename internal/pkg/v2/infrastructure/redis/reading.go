@@ -10,18 +10,19 @@ import (
 	"fmt"
 
 	"github.com/edgexfoundry/edgex-go/internal/pkg/common"
-	"github.com/edgexfoundry/go-mod-core-contracts/errors"
-	"github.com/edgexfoundry/go-mod-core-contracts/v2"
-	"github.com/edgexfoundry/go-mod-core-contracts/v2/models"
+	"github.com/edgexfoundry/go-mod-core-contracts/v2/errors"
+	"github.com/edgexfoundry/go-mod-core-contracts/v2/v2"
+	"github.com/edgexfoundry/go-mod-core-contracts/v2/v2/models"
 
 	"github.com/gomodule/redigo/redis"
 	"github.com/google/uuid"
 )
 
 const (
-	ReadingsCollection           = "cd|rd"
-	ReadingsCollectionCreated    = ReadingsCollection + DBKeySeparator + v2.Created
-	ReadingsCollectionDeviceName = ReadingsCollection + DBKeySeparator + v2.Device + DBKeySeparator + v2.Name
+	ReadingsCollection             = "cd|rd"
+	ReadingsCollectionCreated      = ReadingsCollection + DBKeySeparator + v2.Created
+	ReadingsCollectionDeviceName   = ReadingsCollection + DBKeySeparator + v2.Device + DBKeySeparator + v2.Name
+	ReadingsCollectionResourceName = ReadingsCollection + DBKeySeparator + v2.ResourceName
 )
 
 var emptyBinaryValue = make([]byte, 0)
@@ -56,6 +57,7 @@ func (c *Client) asyncDeleteReadingsByIds(readingIds []string) {
 		_ = conn.Send(ZREM, ReadingsCollection, storedKey)
 		_ = conn.Send(ZREM, ReadingsCollectionCreated, storedKey)
 		_ = conn.Send(ZREM, CreateKey(ReadingsCollectionDeviceName, r.DeviceName), storedKey)
+		_ = conn.Send(ZREM, CreateKey(ReadingsCollectionResourceName, r.ResourceName), storedKey)
 		queriesInQueue++
 
 		if queriesInQueue >= c.BatchSize {
@@ -122,6 +124,7 @@ func addReading(conn redis.Conn, r models.Reading) (reading models.Reading, edge
 	_ = conn.Send(ZADD, ReadingsCollection, 0, storedKey)
 	_ = conn.Send(ZADD, ReadingsCollectionCreated, baseReading.Created, storedKey)
 	_ = conn.Send(ZADD, CreateKey(ReadingsCollectionDeviceName, baseReading.DeviceName), baseReading.Created, storedKey)
+	_ = conn.Send(ZADD, CreateKey(ReadingsCollectionResourceName, baseReading.ResourceName), baseReading.Created, storedKey)
 
 	return reading, nil
 }
@@ -140,6 +143,7 @@ func deleteReadingById(conn redis.Conn, id string) (edgeXerr errors.EdgeX) {
 	_ = conn.Send(ZREM, ReadingsCollection, storedKey)
 	_ = conn.Send(ZREM, ReadingsCollectionCreated, storedKey)
 	_ = conn.Send(ZREM, CreateKey(ReadingsCollectionDeviceName, r.DeviceName), storedKey)
+	_ = conn.Send(ZREM, CreateKey(ReadingsCollectionResourceName, r.ResourceName), storedKey)
 	_, err := conn.Do(EXEC)
 	if err != nil {
 		return errors.NewCommonEdgeX(errors.KindDatabaseError, fmt.Sprintf("reading[id:%s] delete failed", id), err)
@@ -188,6 +192,20 @@ func allReadings(conn redis.Conn, offset int, limit int) (readings []models.Read
 	return convertObjectsToReadings(objects)
 }
 
+// readingsByResourceName query readings by offset, limit, and resource name
+func readingsByResourceName(conn redis.Conn, offset int, limit int, resourceName string) (readings []models.Reading, edgeXerr errors.EdgeX) {
+	end := offset + limit - 1
+	if limit == -1 { //-1 limit means that clients want to retrieve all remaining records after offset from DB, so specifying -1 for end
+		end = limit
+	}
+	objects, err := getObjectsByRevRange(conn, CreateKey(ReadingsCollectionResourceName, resourceName), offset, end)
+	if err != nil {
+		return readings, errors.NewCommonEdgeXWrapper(err)
+	}
+
+	return convertObjectsToReadings(objects)
+}
+
 // readingsByDeviceName query readings by offset, limit, and device name
 func readingsByDeviceName(conn redis.Conn, offset int, limit int, name string) (readings []models.Reading, edgeXerr errors.EdgeX) {
 	end := offset + limit - 1
@@ -199,6 +217,15 @@ func readingsByDeviceName(conn redis.Conn, offset int, limit int, name string) (
 		return readings, errors.NewCommonEdgeXWrapper(err)
 	}
 
+	return convertObjectsToReadings(objects)
+}
+
+// readingsByTimeRange query readings by time range, offset, and limit
+func readingsByTimeRange(conn redis.Conn, start int, end int, offset int, limit int) (readings []models.Reading, edgeXerr errors.EdgeX) {
+	objects, edgeXerr := getObjectsByScoreRange(conn, ReadingsCollectionCreated, start, end, offset, limit)
+	if edgeXerr != nil {
+		return readings, edgeXerr
+	}
 	return convertObjectsToReadings(objects)
 }
 

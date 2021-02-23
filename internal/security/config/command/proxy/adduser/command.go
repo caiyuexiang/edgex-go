@@ -21,10 +21,10 @@ import (
 	"github.com/edgexfoundry/edgex-go/internal/security/config/command/proxy/common"
 	"github.com/edgexfoundry/edgex-go/internal/security/config/interfaces"
 	"github.com/edgexfoundry/edgex-go/internal/security/proxy/config"
-	"github.com/edgexfoundry/edgex-go/internal/security/secretstoreclient"
+	"github.com/edgexfoundry/go-mod-secrets/v2/pkg"
 
-	"github.com/edgexfoundry/go-mod-core-contracts/clients"
-	"github.com/edgexfoundry/go-mod-core-contracts/clients/logger"
+	"github.com/edgexfoundry/go-mod-core-contracts/v2/clients"
+	"github.com/edgexfoundry/go-mod-core-contracts/v2/clients/logger"
 )
 
 const (
@@ -57,7 +57,7 @@ func NewCommand(
 
 	cmd := cmd{
 		loggingClient: lc,
-		client:        secretstoreclient.NewRequestor(lc).Insecure(),
+		client:        pkg.NewRequester(lc).Insecure(),
 		configuration: configuration,
 	}
 	var dummy string

@@ -18,14 +18,14 @@ import (
 	v2DataContainer "github.com/edgexfoundry/edgex-go/internal/core/data/v2/bootstrap/container"
 	dbMock "github.com/edgexfoundry/edgex-go/internal/core/data/v2/infrastructure/interfaces/mocks"
 	"github.com/edgexfoundry/edgex-go/internal/core/data/v2/mocks"
-	"github.com/edgexfoundry/go-mod-bootstrap/di"
-	"github.com/edgexfoundry/go-mod-core-contracts/errors"
-	"github.com/edgexfoundry/go-mod-core-contracts/v2"
-	"github.com/edgexfoundry/go-mod-core-contracts/v2/dtos"
-	"github.com/edgexfoundry/go-mod-core-contracts/v2/dtos/common"
-	"github.com/edgexfoundry/go-mod-core-contracts/v2/dtos/requests"
-	responseDTO "github.com/edgexfoundry/go-mod-core-contracts/v2/dtos/responses"
-	"github.com/edgexfoundry/go-mod-core-contracts/v2/models"
+	"github.com/edgexfoundry/go-mod-bootstrap/v2/di"
+	"github.com/edgexfoundry/go-mod-core-contracts/v2/errors"
+	"github.com/edgexfoundry/go-mod-core-contracts/v2/v2"
+	"github.com/edgexfoundry/go-mod-core-contracts/v2/v2/dtos"
+	"github.com/edgexfoundry/go-mod-core-contracts/v2/v2/dtos/common"
+	"github.com/edgexfoundry/go-mod-core-contracts/v2/v2/dtos/requests"
+	responseDTO "github.com/edgexfoundry/go-mod-core-contracts/v2/v2/dtos/responses"
+	"github.com/edgexfoundry/go-mod-core-contracts/v2/v2/models"
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
 	"github.com/stretchr/testify/assert"
@@ -36,6 +36,7 @@ var expectedCorrelationId = uuid.New().String()
 var expectedEventId = uuid.New().String()
 
 var testReading = dtos.BaseReading{
+	Versionable:  common.NewVersionable(),
 	DeviceName:   TestDeviceName,
 	ResourceName: TestDeviceResourceName,
 	ProfileName:  TestDeviceProfileName,
@@ -48,9 +49,11 @@ var testReading = dtos.BaseReading{
 
 var testAddEvent = requests.AddEventRequest{
 	BaseRequest: common.BaseRequest{
-		RequestId: ExampleUUID,
+		RequestId:   ExampleUUID,
+		Versionable: common.NewVersionable(),
 	},
 	Event: dtos.Event{
+		Versionable: common.NewVersionable(),
 		Id:          expectedEventId,
 		DeviceName:  TestDeviceName,
 		ProfileName: TestDeviceProfileName,
@@ -82,7 +85,6 @@ var persistedEvent = models.Event{
 }
 
 func TestAddEvent(t *testing.T) {
-	expectedResponseCode := http.StatusMultiStatus
 	expectedRequestId := "82eb2e26-0f24-48aa-ae4c-de9dac3fb9bc"
 
 	dbClientMock := &dbMock.DBClient{}
@@ -172,29 +174,31 @@ func TestAddEvent(t *testing.T) {
 
 	tests := []struct {
 		Name               string
-		Request            []requests.AddEventRequest
+		Request            requests.AddEventRequest
+		ProfileName        string
+		DeviceName         string
 		ErrorExpected      bool
 		ExpectedStatusCode int
 	}{
-		{"Valid - AddEventRequest", []requests.AddEventRequest{validRequest}, false, http.StatusCreated},
-		{"Valid - No RequestId", []requests.AddEventRequest{noRequestId}, false, http.StatusCreated},
-		{"Invalid - Bad RequestId", []requests.AddEventRequest{badRequestId}, true, http.StatusBadRequest},
-		{"Invalid - No Event", []requests.AddEventRequest{noEvent}, true, http.StatusBadRequest},
-		{"Invalid - No Event Id", []requests.AddEventRequest{noEventID}, true, http.StatusBadRequest},
-		{"Invalid - Bad Event Id", []requests.AddEventRequest{badEventID}, true, http.StatusBadRequest},
-		{"Invalid - No Event DeviceName", []requests.AddEventRequest{noEventDevice}, true, http.StatusBadRequest},
-		{"Invalid - No Event ProfileName", []requests.AddEventRequest{noEventProfile}, true, http.StatusBadRequest},
-		{"Invalid - No Event Origin", []requests.AddEventRequest{noEventOrigin}, true, http.StatusBadRequest},
-		{"Invalid - No Reading", []requests.AddEventRequest{noReading}, true, http.StatusBadRequest},
-		{"Invalid - No Reading DeviceName", []requests.AddEventRequest{noReadingDevice}, true, http.StatusBadRequest},
-		{"Invalid - No Reading ResourceName", []requests.AddEventRequest{noReadingResourceName}, true, http.StatusBadRequest},
-		{"Invalid - No Reading ProfileName", []requests.AddEventRequest{noReadingProfileName}, true, http.StatusBadRequest},
-		{"Invalid - No Reading Origin", []requests.AddEventRequest{noReadingOrigin}, true, http.StatusBadRequest},
-		{"Invalid - No Reading ValueType", []requests.AddEventRequest{noReadingValueType}, true, http.StatusBadRequest},
-		{"Invalid - Invalid Reading ValueType", []requests.AddEventRequest{invalidReadingInvalidValueType}, true, http.StatusBadRequest},
-		{"Invalid - No SimpleReading Value", []requests.AddEventRequest{noSimpleValue}, true, http.StatusBadRequest},
-		{"Invalid - No BinaryReading BinaryValue", []requests.AddEventRequest{noBinaryValue}, true, http.StatusBadRequest},
-		{"Invalid - No BinaryReading MediaType", []requests.AddEventRequest{noBinaryMediaType}, true, http.StatusBadRequest},
+		{"Valid - AddEventRequest", validRequest, validRequest.Event.ProfileName, validRequest.Event.DeviceName, false, http.StatusCreated},
+		{"Valid - No RequestId", noRequestId, noRequestId.Event.ProfileName, noRequestId.Event.DeviceName, false, http.StatusCreated},
+		{"Invalid - Bad RequestId", badRequestId, badRequestId.Event.ProfileName, badRequestId.Event.DeviceName, true, http.StatusBadRequest},
+		{"Invalid - No Event", noEvent, "", "", true, http.StatusBadRequest},
+		{"Invalid - No Event Id", noEventID, noEventID.Event.ProfileName, noEventID.Event.DeviceName, true, http.StatusBadRequest},
+		{"Invalid - Bad Event Id", badEventID, badEventID.Event.ProfileName, badEventID.Event.DeviceName, true, http.StatusBadRequest},
+		{"Invalid - No Event DeviceName", noEventDevice, noEventDevice.Event.ProfileName, noEventDevice.Event.DeviceName, true, http.StatusBadRequest},
+		{"Invalid - No Event ProfileName", noEventProfile, noEventProfile.Event.ProfileName, noEventProfile.Event.DeviceName, true, http.StatusBadRequest},
+		{"Invalid - No Event Origin", noEventOrigin, noEventOrigin.Event.ProfileName, noEventOrigin.Event.DeviceName, true, http.StatusBadRequest},
+		{"Invalid - No Reading", noReading, noReading.Event.ProfileName, noReading.Event.DeviceName, true, http.StatusBadRequest},
+		{"Invalid - No Reading DeviceName", noReadingDevice, noReadingDevice.Event.ProfileName, noReadingDevice.Event.DeviceName, true, http.StatusBadRequest},
+		{"Invalid - No Reading ResourceName", noReadingResourceName, noReadingResourceName.Event.ProfileName, noReadingResourceName.Event.DeviceName, true, http.StatusBadRequest},
+		{"Invalid - No Reading ProfileName", noReadingProfileName, noReadingProfileName.Event.ProfileName, noReadingProfileName.Event.DeviceName, true, http.StatusBadRequest},
+		{"Invalid - No Reading Origin", noReadingOrigin, noReadingOrigin.Event.ProfileName, noReadingOrigin.Event.DeviceName, true, http.StatusBadRequest},
+		{"Invalid - No Reading ValueType", noReadingValueType, noReadingValueType.Event.ProfileName, noReadingValueType.Event.DeviceName, true, http.StatusBadRequest},
+		{"Invalid - Invalid Reading ValueType", invalidReadingInvalidValueType, invalidReadingInvalidValueType.Event.ProfileName, invalidReadingInvalidValueType.Event.DeviceName, true, http.StatusBadRequest},
+		{"Invalid - No SimpleReading Value", noSimpleValue, noSimpleValue.Event.ProfileName, noSimpleValue.Event.DeviceName, true, http.StatusBadRequest},
+		{"Invalid - No BinaryReading BinaryValue", noBinaryValue, noBinaryValue.Event.ProfileName, noBinaryValue.Event.DeviceName, true, http.StatusBadRequest},
+		{"Invalid - No BinaryReading MediaType", noBinaryMediaType, noBinaryMediaType.Event.ProfileName, noBinaryMediaType.Event.DeviceName, true, http.StatusBadRequest},
 	}
 
 	for _, testCase := range tests {
@@ -204,14 +208,15 @@ func TestAddEvent(t *testing.T) {
 
 			reader := strings.NewReader(string(jsonData))
 
-			req, err := http.NewRequest(http.MethodPost, v2.ApiEventRoute, reader)
+			req, err := http.NewRequest(http.MethodPost, v2.ApiEventProfileNameDeviceNameRoute, reader)
+			req = mux.SetURLVars(req, map[string]string{v2.ProfileName: testCase.ProfileName, v2.DeviceName: testCase.DeviceName})
 			require.NoError(t, err)
 
 			recorder := httptest.NewRecorder()
 			handler := http.HandlerFunc(ec.AddEvent)
 			handler.ServeHTTP(recorder, req)
 
-			var actualResponse []common.BaseWithIdResponse
+			var actualResponse common.BaseWithIdResponse
 			err = json.Unmarshal(recorder.Body.Bytes(), &actualResponse)
 
 			if testCase.ErrorExpected {
@@ -220,13 +225,13 @@ func TestAddEvent(t *testing.T) {
 			}
 
 			require.NoError(t, err)
-			assert.Equal(t, expectedResponseCode, recorder.Result().StatusCode, "HTTP status code not as expected")
-			assert.Equal(t, v2.ApiVersion, actualResponse[0].ApiVersion, "API Version not as expected")
-			assert.Equal(t, testCase.ExpectedStatusCode, int(actualResponse[0].StatusCode), "BaseResponse status code not as expected")
-			if actualResponse[0].RequestId != "" {
-				assert.Equal(t, expectedRequestId, actualResponse[0].RequestId, "RequestID not as expected")
+			assert.Equal(t, testCase.ExpectedStatusCode, recorder.Result().StatusCode, "HTTP status code not as expected")
+			assert.Equal(t, v2.ApiVersion, actualResponse.ApiVersion, "API Version not as expected")
+			assert.Equal(t, testCase.ExpectedStatusCode, int(actualResponse.StatusCode), "BaseResponse status code not as expected")
+			if actualResponse.RequestId != "" {
+				assert.Equal(t, expectedRequestId, actualResponse.RequestId, "RequestID not as expected")
 			}
-			assert.Empty(t, actualResponse[0].Message, "Message should be empty when it is successful")
+			assert.Empty(t, actualResponse.Message, "Message should be empty when it is successful")
 		})
 	}
 }
@@ -380,11 +385,11 @@ func TestEventTotalCount(t *testing.T) {
 	assert.Equal(t, expectedEventCount, actualResponse.Count, "Event count in the response body is not expected")
 }
 
-func TestEventCountByDevice(t *testing.T) {
+func TestEventCountByDeviceName(t *testing.T) {
 	expectedEventCount := uint32(656672)
 	deviceName := "deviceA"
 	dbClientMock := &dbMock.DBClient{}
-	dbClientMock.On("EventCountByDevice", deviceName).Return(expectedEventCount, nil)
+	dbClientMock.On("EventCountByDeviceName", deviceName).Return(expectedEventCount, nil)
 
 	dic := mocks.NewMockDIC()
 	dic.Update(di.ServiceConstructorMap{
@@ -399,7 +404,7 @@ func TestEventCountByDevice(t *testing.T) {
 	require.NoError(t, err)
 
 	recorder := httptest.NewRecorder()
-	handler := http.HandlerFunc(ec.EventCountByDevice)
+	handler := http.HandlerFunc(ec.EventCountByDeviceName)
 	handler.ServeHTTP(recorder, req)
 
 	var actualResponse common.CountResponse

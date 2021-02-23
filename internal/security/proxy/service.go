@@ -32,10 +32,10 @@ import (
 
 	"github.com/edgexfoundry/edgex-go/internal"
 
-	"github.com/edgexfoundry/go-mod-core-contracts/clients"
-	"github.com/edgexfoundry/go-mod-core-contracts/clients/logger"
+	"github.com/edgexfoundry/go-mod-core-contracts/v2/clients"
+	"github.com/edgexfoundry/go-mod-core-contracts/v2/clients/logger"
 
-	bootstrapConfig "github.com/edgexfoundry/go-mod-bootstrap/config"
+	bootstrapConfig "github.com/edgexfoundry/go-mod-bootstrap/v2/config"
 )
 
 type CertUploadErrorType int
@@ -84,7 +84,7 @@ func (s *Service) CheckProxyServiceStatus() error {
 }
 
 func (s *Service) CheckSecretServiceStatus() error {
-	return s.checkServiceStatus(s.configuration.SecretService.GetSecretSvcBaseURL())
+	return s.checkServiceStatus(s.configuration.SecretStore.GetBaseURL())
 }
 
 func (s *Service) checkServiceStatus(path string) error {
@@ -282,7 +282,7 @@ func (s *Service) postCert(cp bootstrapConfig.CertKeyPair) *CertError {
 	body := &CertInfo{
 		Cert: cp.Cert,
 		Key:  cp.Key,
-		Snis: s.configuration.SecretService.SNIS,
+		Snis: s.configuration.SecretStore.SNIS,
 	}
 	s.loggingClient.Debug("trying to upload cert to proxy server")
 	data, err := json.Marshal(body)

@@ -23,7 +23,7 @@ import (
 
 	"github.com/edgexfoundry/edgex-go/internal"
 
-	"github.com/edgexfoundry/go-mod-bootstrap/bootstrap/flags"
+	"github.com/edgexfoundry/go-mod-bootstrap/v2/bootstrap/flags"
 )
 
 // commonFlags is a custom implementation of flags.Common from go-mod-bootstrap
@@ -67,12 +67,6 @@ func (f *commonFlags) OverwriteConfig() bool {
 // UseRegistry returns false since registry is not used
 func (f *commonFlags) UseRegistry() bool {
 	return false
-}
-
-// RegistryUrl returns the registry if one was specified
-// TODO: Remove for release V2.0.0 when -registry is back to just bool flag
-func (f *commonFlags) RegistryUrl() string {
-	return ""
 }
 
 // ConfigProviderUrl returns the empty url since Configuration Provider is not used.

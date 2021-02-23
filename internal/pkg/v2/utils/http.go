@@ -7,15 +7,17 @@ package utils
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"net/http"
 	"strconv"
 	"strings"
 
 	"github.com/edgexfoundry/edgex-go/internal/pkg/correlation"
-	"github.com/edgexfoundry/go-mod-core-contracts/clients"
-	"github.com/edgexfoundry/go-mod-core-contracts/errors"
-	contractsV2 "github.com/edgexfoundry/go-mod-core-contracts/v2"
+	"github.com/edgexfoundry/go-mod-core-contracts/v2/clients"
+	"github.com/edgexfoundry/go-mod-core-contracts/v2/errors"
+	contractsV2 "github.com/edgexfoundry/go-mod-core-contracts/v2/v2"
 	"github.com/gorilla/mux"
 )
 
@@ -79,6 +81,17 @@ func ParseQueryStringToStrings(r *http.Request, queryStringKey string, separator
 	return stringArray
 }
 
+// Parse the specified query string key to a string.  If specified query string key is found more than once in
+// the http request, only the first specified query string will be parsed and converted to a string.  If no specified
+// query string could be found, defaultValue will be returned.
+func ParseQueryStringToString(r *http.Request, queryStringKey string, defaultValue string) string {
+	value, ok := r.URL.Query()[queryStringKey]
+	if !ok {
+		return defaultValue
+	}
+	return value[0]
+}
+
 func ParseTimeRangeOffsetLimit(r *http.Request, minOffset int, maxOffset int, minLimit int, maxLimit int) (start int, end int, offset int, limit int, edgexErr errors.EdgeX) {
 	start, edgexErr = ParsePathParamToInt(r, contractsV2.Start)
 	if edgexErr != nil {
@@ -115,5 +128,21 @@ func ParsePathParamToInt(r *http.Request, pathKey string) (int, errors.EdgeX) {
 	if parsingErr != nil {
 		return 0, errors.NewCommonEdgeX(errors.KindContractInvalid, fmt.Sprintf("failed to parse path param %s's value %s into integer. Error:%s", pathKey, val, parsingErr.Error()), nil)
 	}
+	return result, nil
+}
+
+// Parse the body of http request to a map[string]string.  EdgeX error will be returned if any parsing error occurs.
+func ParseBodyToMap(r *http.Request) (map[string]string, errors.EdgeX) {
+	defer r.Body.Close()
+	body, err := ioutil.ReadAll(r.Body)
+	if err != nil {
+		return nil, errors.NewCommonEdgeX(errors.KindServerError, "failed to read request body", err)
+	}
+
+	var result map[string]string
+	if err = json.Unmarshal(body, &result); err != nil {
+		return nil, errors.NewCommonEdgeX(errors.KindServerError, "failed to parse request body", err)
+	}
+
 	return result, nil
 }

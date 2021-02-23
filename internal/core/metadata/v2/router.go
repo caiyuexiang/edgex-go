@@ -1,3 +1,8 @@
+//
+// Copyright (C) 2021 IOTech Ltd
+//
+// SPDX-License-Identifier: Apache-2.0
+
 package v2
 
 import (
@@ -7,8 +12,8 @@ import (
 	"github.com/edgexfoundry/edgex-go/internal/pkg/correlation"
 	commonController "github.com/edgexfoundry/edgex-go/internal/pkg/v2/controller/http"
 
-	"github.com/edgexfoundry/go-mod-bootstrap/di"
-	v2Constant "github.com/edgexfoundry/go-mod-core-contracts/v2"
+	"github.com/edgexfoundry/go-mod-bootstrap/v2/di"
+	v2Constant "github.com/edgexfoundry/go-mod-core-contracts/v2/v2"
 
 	"github.com/gorilla/mux"
 )
@@ -29,7 +34,6 @@ func LoadRestRoutes(r *mux.Router, dic *di.Container) {
 	r.HandleFunc(v2Constant.ApiDeviceProfileUploadFileRoute, dc.AddDeviceProfileByYaml).Methods(http.MethodPost)
 	r.HandleFunc(v2Constant.ApiDeviceProfileUploadFileRoute, dc.UpdateDeviceProfileByYaml).Methods(http.MethodPut)
 	r.HandleFunc(v2Constant.ApiDeviceProfileByNameRoute, dc.DeviceProfileByName).Methods(http.MethodGet)
-	r.HandleFunc(v2Constant.ApiDeviceProfileByIdRoute, dc.DeleteDeviceProfileById).Methods(http.MethodDelete)
 	r.HandleFunc(v2Constant.ApiDeviceProfileByNameRoute, dc.DeleteDeviceProfileByName).Methods(http.MethodDelete)
 	r.HandleFunc(v2Constant.ApiAllDeviceProfileRoute, dc.AllDeviceProfiles).Methods(http.MethodGet)
 	r.HandleFunc(v2Constant.ApiDeviceProfileByModelRoute, dc.DeviceProfilesByModel).Methods(http.MethodGet)
@@ -41,22 +45,29 @@ func LoadRestRoutes(r *mux.Router, dic *di.Container) {
 	r.HandleFunc(v2Constant.ApiDeviceServiceRoute, ds.AddDeviceService).Methods(http.MethodPost)
 	r.HandleFunc(v2Constant.ApiDeviceServiceRoute, ds.PatchDeviceService).Methods(http.MethodPatch)
 	r.HandleFunc(v2Constant.ApiDeviceServiceByNameRoute, ds.DeviceServiceByName).Methods(http.MethodGet)
-	r.HandleFunc(v2Constant.ApiDeviceServiceByIdRoute, ds.DeleteDeviceServiceById).Methods(http.MethodDelete)
 	r.HandleFunc(v2Constant.ApiDeviceServiceByNameRoute, ds.DeleteDeviceServiceByName).Methods(http.MethodDelete)
 	r.HandleFunc(v2Constant.ApiAllDeviceServiceRoute, ds.AllDeviceServices).Methods(http.MethodGet)
 
 	// Device
 	d := metadataController.NewDeviceController(dic)
 	r.HandleFunc(v2Constant.ApiDeviceRoute, d.AddDevice).Methods(http.MethodPost)
-	r.HandleFunc(v2Constant.ApiDeviceByIdRoute, d.DeleteDeviceById).Methods(http.MethodDelete)
 	r.HandleFunc(v2Constant.ApiDeviceByNameRoute, d.DeleteDeviceByName).Methods(http.MethodDelete)
 	r.HandleFunc(v2Constant.ApiDeviceByServiceNameRoute, d.DevicesByServiceName).Methods(http.MethodGet)
-	r.HandleFunc(v2Constant.ApiDeviceIdExistsRoute, d.DeviceIdExists).Methods(http.MethodGet)
 	r.HandleFunc(v2Constant.ApiDeviceNameExistsRoute, d.DeviceNameExists).Methods(http.MethodGet)
 	r.HandleFunc(v2Constant.ApiDeviceRoute, d.PatchDevice).Methods(http.MethodPatch)
 	r.HandleFunc(v2Constant.ApiAllDeviceRoute, d.AllDevices).Methods(http.MethodGet)
 	r.HandleFunc(v2Constant.ApiDeviceByNameRoute, d.DeviceByName).Methods(http.MethodGet)
 	r.HandleFunc(v2Constant.ApiDeviceByProfileNameRoute, d.DevicesByProfileName).Methods(http.MethodGet)
+
+	// ProvisionWatcher
+	pwc := metadataController.NewProvisionWatcherController(dic)
+	r.HandleFunc(v2Constant.ApiProvisionWatcherRoute, pwc.AddProvisionWatcher).Methods(http.MethodPost)
+	r.HandleFunc(v2Constant.ApiProvisionWatcherByNameRoute, pwc.ProvisionWatcherByName).Methods(http.MethodGet)
+	r.HandleFunc(v2Constant.ApiProvisionWatcherByServiceNameRoute, pwc.ProvisionWatchersByServiceName).Methods(http.MethodGet)
+	r.HandleFunc(v2Constant.ApiProvisionWatcherByProfileNameRoute, pwc.ProvisionWatchersByProfileName).Methods(http.MethodGet)
+	r.HandleFunc(v2Constant.ApiAllProvisionWatcherRoute, pwc.AllProvisionWatchers).Methods(http.MethodGet)
+	r.HandleFunc(v2Constant.ApiProvisionWatcherByNameRoute, pwc.DeleteProvisionWatcherByName).Methods(http.MethodDelete)
+	r.HandleFunc(v2Constant.ApiProvisionWatcherRoute, pwc.PatchProvisionWatcher).Methods(http.MethodPatch)
 
 	r.Use(correlation.ManageHeader)
 	r.Use(correlation.OnResponseComplete)

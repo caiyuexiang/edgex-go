@@ -22,8 +22,8 @@ import (
 	"github.com/edgexfoundry/edgex-go/internal"
 	"github.com/edgexfoundry/edgex-go/internal/core/command/errors"
 
-	"github.com/edgexfoundry/go-mod-core-contracts/clients/logger"
-	contract "github.com/edgexfoundry/go-mod-core-contracts/models"
+	"github.com/edgexfoundry/go-mod-core-contracts/v2/clients/logger"
+	contract "github.com/edgexfoundry/go-mod-core-contracts/v2/models"
 )
 
 // NewPutCommand creates and Executor which can be used to execute the PUT related command.
@@ -36,11 +36,12 @@ func NewPutCommand(
 	lc logger.LoggingClient,
 	originalRequest *http.Request) (Executor, error) {
 
+	queryParams := originalRequest.URL.RawQuery
 	url := device.Service.Addressable.GetBaseURL() + strings.Replace(
 		command.Put.Action.Path,
 		DEVICEIDURLPARAM,
 		device.Id,
-		-1)
+		-1) + "?" + queryParams
 	deviceServiceProxiedRequest, err := http.NewRequest(http.MethodPut, url, strings.NewReader(body))
 	if err != nil {
 		return serviceCommand{}, err
